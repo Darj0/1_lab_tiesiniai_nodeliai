@@ -39,13 +39,21 @@ qqPlot(data$Salary, dist = "norm",
        xlab = "Teoriniai kvantiliai", ylab = "Stebėti atlyginimai")
 
 # ------------------- 4. Koreliacija (kiekybiniai kintamieji) -------------------
-num_vars <- data[, c("Salary", "Experience", "Age", "Gender_num")]
-cor_matrix <- cor(num_vars, use="complete.obs")
+data$Education_ord <- as.numeric(factor(data$Education, 
+                                        levels = c("High School", "Bachelor", "Master", "PhD"),
+                                        ordered = TRUE))
+
+data$Job_Title_ord <- as.numeric(factor(data$Job_Title,
+                                        levels = c("Analyst", "Director", "Engineer", "Manager"),
+                                        ordered = TRUE))
+
+num_vars <- data[, c("Salary", "Experience", "Age", "Gender_num", "Education_ord", "Job_Title_ord")]
+cor_matrix <- cor(num_vars, use = "complete.obs")
 print(cor_matrix)
-corrplot(cor_matrix, method="number", type="upper")
+corrplot(cor_matrix, method = "number", type = "upper")
 
 
-### prideti issilavinima bei pareigas
+
 # ------------------- 5. Stačiakampės diagramos -------------------
 mano_tema <- theme_minimal(base_size=14) +
   theme(
@@ -79,6 +87,96 @@ ggplot(data, aes(x=Gender, y=Salary, fill=Gender)) +
   geom_boxplot() +
   labs(title="Atlyginimas pagal lytį", x="Lytis", y="Atlyginimas (USD)") +
   mano_tema
+
+
+
+# 95% PI (mean ± 1.96*SE)
+mean_ci95 <- function(x, conf = 0.95) {
+  x <- x[!is.na(x)]
+  m  <- mean(x)
+  se <- sd(x) / sqrt(length(x))
+  z  <- qnorm(1 - (1 - conf)/2)
+  data.frame(y = m, ymin = m - z*se, ymax = m + z*se)
+}
+
+# ── Išsilavinimas
+ggplot(data, aes(x = Education, y = Salary)) +
+  stat_summary(fun = mean, geom = "col") +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  labs(title = "Vidurkiai ir 95% PI pagal išsilavinimą",
+       x = "Išsilavinimas", y = "Atlyginimas (USD)") +
+  mano_tema
+
+# ── Vietovė
+ggplot(data, aes(x = Location, y = Salary)) +
+  stat_summary(fun = mean, geom = "col") +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  labs(title = "Vidurkiai ir 95% PI pagal vietovę",
+       x = "Vietovė", y = "Atlyginimas (USD)") +
+  mano_tema
+
+# ── Pareigos
+ggplot(data, aes(x = Job_Title, y = Salary)) +
+  stat_summary(fun = mean, geom = "col") +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  labs(title = "Vidurkiai ir 95% PI pagal pareigas",
+       x = "Pareigos", y = "Atlyginimas (USD)") +
+  mano_tema
+
+# ── Lytis
+ggplot(data, aes(x = Gender, y = Salary)) +
+  stat_summary(fun = mean, geom = "col") +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  labs(title = "Vidurkiai ir 95% PI pagal lytį",
+       x = "Lytis", y = "Atlyginimas (USD)") +
+  mano_tema
+
+
+# 95% PI (mean ± 1.96*SE)
+mean_ci95 <- function(x, conf = 0.95) {
+  x <- x[!is.na(x)]
+  m  <- mean(x); se <- sd(x)/sqrt(length(x)); z <- qnorm(1-(1-conf)/2)
+  data.frame(y = m, ymin = m - z*se, ymax = m + z*se)
+}
+
+# bendras "zoom" į 5–95 % atlyginimų intervalą (kad nebūtų "plokščios" kolonos)
+ylims <- as.numeric(quantile(data$Salary, c(0.05, 0.95), na.rm = TRUE))
+
+# ── Išsilavinimas: spalvos pagal kategoriją, rikiuota pagal vidurkį
+ggplot(data, aes(x = reorder(Education, Salary, mean), y = Salary, fill = Education)) +
+  stat_summary(fun = mean, geom = "col", alpha = 0.9) +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  scale_fill_brewer(palette = "Set2") +
+  coord_cartesian(ylim = ylims) +
+  labs(title = "Vidurkiai ir 95% PI pagal išsilavinimą",
+       x = "Išsilavinimas", y = "Atlyginimas (USD)") +
+  mano_tema +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 15, hjust = 1))
+
+# ── Vietovė: spalvos pagal kategoriją
+ggplot(data, aes(x = reorder(Location, Salary, mean), y = Salary, fill = Location)) +
+  stat_summary(fun = mean, geom = "col", alpha = 0.9) +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  scale_fill_brewer(palette = "Pastel1") +
+  coord_cartesian(ylim = ylims) +
+  labs(title = "Vidurkiai ir 95% PI pagal vietovę",
+       x = "Vietovė", y = "Atlyginimas (USD)") +
+  mano_tema +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 15, hjust = 1))
+
+# ── Pareigos: daug kategorijų → flip'intas grafikas, kad būtų skaitoma
+ggplot(data, aes(x = reorder(Job_Title, Salary, mean), y = Salary, fill = Job_Title)) +
+  stat_summary(fun = mean, geom = "col", alpha = 0.9) +
+  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
+  scale_fill_brewer(palette = "Set3") +
+  coord_cartesian(ylim = ylims) +
+  labs(title = "Vidurkiai ir 95% PI pagal pareigas",
+       x = "Pareigos", y = "Atlyginimas (USD)") +
+  mano_tema +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = 1))
 
 # ------------------- 6. Sklaidos diagramos -------------------
 plot(data$Experience, data$Salary,
