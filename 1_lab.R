@@ -49,9 +49,21 @@ data$Job_Title_ord <- as.numeric(factor(data$Job_Title,
 
 num_vars <- data[, c("Salary", "Experience", "Age", "Gender_num", "Education_ord", "Job_Title_ord")]
 cor_matrix <- cor(num_vars, use = "complete.obs")
-print(cor_matrix)
-corrplot(cor_matrix, method = "number", type = "upper")
 
+vardai_lt <- c(
+  "Atlyginimas",
+  "Darbo patirtis (m.)",
+  "Amžius (m.)",
+  "Lytis (moteris = 1)",
+  "Išsilavinimas (ord.)",
+  "Pareigos (ord.)"
+)
+
+colnames(cor_matrix) <- vardai_lt
+rownames(cor_matrix) <- vardai_lt
+
+corrplot(cor_matrix, method = "number", type = "upper",
+         tl.col = "black", tl.srt =45 , number.cex = 0.9)
 
 
 # ------------------- 5. Stačiakampės diagramos -------------------
