@@ -1,295 +1,294 @@
 ---
-title: "1lab"
+title: "test"
 author: "vilte"
-date: "2025-09-22"
-output:
-  word_document: default
-  pdf_document: default
+date: "`r Sys.Date()`"
+output: pdf_document
 ---
 
-# ------------------- Bibliotekos -------------------
-```{r}
-library(nortest)    # Anderson-Darling testui
-library(MASS)       # boxcox, stepAIC
-library(car)        # qqPlot
-library(corrplot)   # koreliacijos grafikai
-library(ggplot2)    # grafikai
-library(dplyr)      # rename
-library(plyr)       # revalue
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# ------------------- 1. Duomenų skaitymas -------------------
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
 ```{r}
-#data <- read.csv("/Users/darjabaranova/Documents/VU/3_kursas/tiesiniai_metodai/salary_prediction_data.csv", stringsAsFactors = FALSE)
-data <- read.csv("/Users/vilte/Desktop/salary_prediction_data.csv",
+data <- read.csv("/Users/vilte/Desktop/archive/CO2 Emissions_Canada.csv",
                  stringsAsFactors = FALSE)
-```
+# Remove only the second-to-last column
+data <- data[, - (ncol(data) - 1)]
 
-# 2. Kategorinių kintamųjų nustatymas
-```{r}
-data$Education <- factor(data$Education)
-data$Education <- revalue(data$Education,
-                         c("High School" = "Vidurinis išsilavinimas",
-                           "Bachelor" = "Bakalauro laipsnis",
-                           "Master" = "Magistro laipsnis",
-                           "PhD" = "Daktaro laipsnis"))
-
-data$Location <- factor(data$Location)
-data$Location <- revalue(data$Location,
-                         c("Rural" = "Kaimas",
-                           "Suburban" = "Priemiestis",
-                           "Urban" = "Miestas"))
-
-data$Job_Title <- factor(data$Job_Title)
-data$Job_Title <- revalue(data$Job_Title,
-                         c("Manager" = "Vadovas",
-                           "Director" = "Direktorius",
-                           "Analyst" = "Analitikas",
-                           "Engineer" = "Inžinierius"))
-
-data$Gender <- factor(data$Gender)
-data$Gender <- revalue(data$Gender,
-                          c("Female" = "Moteris",
-                            "Male" = "Vyras"))
-data$Gender_num <- ifelse(data$Gender == "Moteris", 1, 0)  # kiekybinė lytis koreliacijai
-```
+data$logCO2 <- log(data$CO2.Emissions.g.km.)
+names(data) <- c("Markė",
+                 "Modelis",
+                 "Kėbulo tipas",
+                 "Variklio tūris (l)",
+                 "Cilindrų kiekis",
+                 "Pavarų dėžės tipas",
+                 "Kuro tipas",
+                 "Kuro sąnaudos mieste (l/100km)",
+                 "Kuro sąnaudos greitkelyje (l/100km)",
+                 "Vidutinės kuro sąnaudos (l/100km)",
+                 "Vidutinės kuro sąnaudos (mpg)",
+                 "CO2 emisijos (g/km)")
 
 
-# ------------------- 2. Pradinė kintamojo "Salary" analizė -------------------
-```{r}
-summary(data$Salary)
-
-data$Salary <- data$Salary / 1000  
-```
-
-# ------------------- 3. Normalumo testai -------------------
-# Kolmogorovo–Smirnovo testas
-```{r}
-ks.test(data$Salary, "pnorm", mean = mean(data$Salary), sd = sd(data$Salary))
-```
-
-
-# Histogramos su tankio linija
-```{r}
-options(scipen = 999)
-hist(data$Salary, breaks=30, freq=FALSE, col="darkgray",
-     main="Atlyginimo histograma", xlab="Atlyginimas (USD tūkst.)", ylab="Tankis")
-x_vals <- seq(min(data$Salary), max(data$Salary), length.out=100)
-lines(x_vals, dnorm(x_vals, mean=mean(data$Salary), sd=sd(data$Salary)), col="red", lwd=2)
 ```
 
 ```{r}
-# QQ grafikas
-qqPlot(data$Salary, dist = "norm",
-       main = "QQ grafikas: atlyginimas",
-       xlab = "Teoriniai kvantiliai", ylab = "Stebėti atlyginimai (tūkst.)")
+
+# Histogram su log10 transformuotu stulpeliu
+hist(data$`CO2 emisijos (g/km)`,
+     breaks = 40,
+     probability = TRUE,
+     main = "Logaritmiškai transformuotų automobilių CO2 emisijų pasiskirstymo histograma",
+     xlab = "CO2 emisijos (g/km)",
+     ylab = "Tankis",
+     col = "lightblue",
+     border = "black")
+
+# Normaliosios kreivės pridėjimas
+x <- seq(min(data$`CO2 emisijos (g/km)`, na.rm=TRUE), max(data$`CO2 emisijos (g/km)`, na.rm=TRUE), length=100)
+y <- dnorm(x, 
+           mean=mean(data$`CO2 emisijos (g/km)`, na.rm=TRUE), 
+           sd=sd(data$`CO2 emisijos (g/km)`, na.rm=TRUE))
+lines(x, y, col="red", lwd=2)
+
+legend("topright",
+       legend = c("CO2 emisijų pasiskirstymas", "Normalumo kreivė"),
+       col    = c("lightblue", "red"),
+       lwd    = c(10, 2),       # stulpelis (histograma) ir linija (kreivė)
+       bty    = "n")            # be rėmelio
 ```
 
-# ------------------- 4. Koreliacija (kiekybiniai kintamieji) -------------------
 ```{r}
-data$Education_ord <- as.numeric(factor(data$Education, 
-                                        levels = c("Vidurinis išsilavinimas", "Bakalauro laipsnis", "Magistro laipsnis", "Daktaro laipsnis"),
-                                        ordered = TRUE))
+library(corrplot)
+# 1. Prepare numeric variables:
+numeric_vars <- data[, sapply(data, is.numeric)]
+colnames(numeric_vars) <- c("Variklio tūris (l)",
+                            "Cilindrų\nkiekis",
+                            "Kuro sąnaudos\nmieste (l/100km)",
+                            "Kuro sąnaudos\ngreitkelyje (l/100km)",
+                            "Vidutinės kuro\nsąnaudos (l/100km)",
+                            "Vidutinės kuro\nsąnaudos (mpg)",
+                            "CO2 emisijos (g/km)")
 
-data$Job_Title_ord <- as.numeric(factor(data$Job_Title,
-                                        levels = c("Analitikas", "Direktorius", "Inžinierius", "Vadovas"),
-                                        ordered = TRUE))
+# 2. Correlation matrix
+cor_matrix <- cor(numeric_vars, use = "complete.obs")
 
-num_vars <- data[, c("Salary", "Experience", "Age", "Gender_num", "Education_ord", "Job_Title_ord")]
-cor_matrix <- cor(num_vars, use = "complete.obs")
-
-vardai_lt <- c(
-  "Atlyginimas (USD tūkst.)",
-  "Darbo patirtis (m.)",
-  "Amžius (m.)",
-  "Lytis (moteris = 1)",
-  "Išsilavinimas (ord.)",
-  "Pareigos (ord.)"
-)
-
-colnames(cor_matrix) <- vardai_lt
-rownames(cor_matrix) <- vardai_lt
+# Correlation plot
 
 corrplot(cor_matrix, method = "number", type = "upper",
-         tl.col = "black", tl.srt =45 , number.cex = 0.9)
+         tl.col = "black", tl.srt = 90 , number.cex = 0.9)
 
-```
-# ------------------- 5. Stačiakampės diagramos -------------------
-```{r}
-mano_tema <- theme_minimal(base_size=14) +
-  theme(
-    axis.ticks = element_line(color="black"),
-    axis.ticks.length = unit(5, "pt"),
-    axis.line.x = element_line(color="black"),
-    axis.line.y = element_line(color="black"),
-    plot.title = element_text(hjust=0.5)
+
+mtext("Kiekybinių kintamųjų koreliacijų matrica",
+      side = 3,       # top
+      line = -10,       # closer to plot (try -1, 0, or 1)
+      cex = 1.2,      # text size
+      font = 2,       # bold
+      adj = 0.7)      # 0 = left, 0.5 = center, 1 = right
+
+library(GGally)
+library(ggplot2)
+
+# Funkcija viršutinei daliai (sklaidos taškai + regresija)
+upper_fun <- function(data, mapping, ...) {
+  ggplot(data, mapping) +
+    geom_point(alpha = 0.5, color = "blue") +         
+    geom_smooth(method = "lm", se = FALSE, color = "red", lwd = 1) + 
+    theme_minimal()
+}
+
+# Funkcija įstrižainei (tik kintamojo pavadinimas centre)
+diag_fun <- function(data, mapping, ...) {
+  var <- as_label(mapping$x)
+  ggplot() +
+    annotate("text", x = 0.5, y = 0.5, label = var, size = 4, fontface = "bold") +
+    theme_void()
+}
+
+# Pair plot į objektą
+p <- suppressMessages(
+  suppressWarnings(
+    ggpairs(numeric_vars,
+            upper = list(continuous = upper_fun),   
+            lower = list(continuous = "blank"),     
+            diag  = list(continuous = "blank"),    
+            progress = FALSE) +
+      ggtitle("Sklaidos diagramos tarp kiekybinių kintamųjų") +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold"))
   )
+)
 
-# Išsilavinimas
-ggplot(data, aes(x=Education, y=Salary, fill=Education)) +
-  geom_boxplot() +
-  labs(
-    title = "Atlyginimas pagal išsilavinimą",
-    x = "Išsilavinimas", 
-    y = "Atlyginimas (USD tūkst.)",
-    fill = "Išsilavinimo lygis"
-  ) +
-  mano_tema
+# Išsaugoti kaip PNG į Desktop
+ggsave(filename = "/Users/vilte/Desktop/scatter_matrix.png",
+       plot = p, width = 12, height = 12, dpi = 300)
+
 ```
-
 ```{r}
-# Vietovė
-ggplot(data, aes(x=Location, y=Salary, fill=Location)) +
-  geom_boxplot() +
-  labs(title="Atlyginimas pagal vietovę",
-       x="Vietovė",
-       y="Atlyginimas (USD tūkst.)",
-       fill = "Gyvenamoji vietovė"
-  ) +
-  mano_tema
-```
+library(dplyr)
+library(ggplot2)
 
-```{r}
-# Pareigos
-ggplot(data, aes(x=Job_Title, y=Salary, fill=Job_Title)) +
-  geom_boxplot() +
-  labs(title="Atlyginimas pagal pareigas",
-       x="Pareigos",
-       y="Atlyginimas (USD tūkst.)",
-       fill = "Darbo pareigos"
-  ) +
-  mano_tema
-```
+dep_var <- "CO2 emisijos (g/km)"
 
-```{r}
-# Lytis
-ggplot(data, aes(x=Gender, y=Salary, fill=Gender)) +
-  geom_boxplot() +
-  labs(title="Atlyginimas pagal lytį",
-       x="Lytis",
-       y="Atlyginimas (USD tūkst.)",
-       fill = "Lytis"
-  ) +
-  mano_tema
-```
+# ===== 1. Top 10 markių pagal CO2 =====
+top_brands <- data %>%
+  group_by(Markė) %>%
+  filter(n() >= 10) %>%
+  summarise(mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE)) %>%
+  arrange(desc(mean_CO2)) %>%
+  slice_head(n = 10) %>%
+  pull(Markė)
 
-```{r}
-# 95% PI (mean ± 1.96*SE)
-mean_ci95 <- function(x, conf = 0.95) {
-  x <- x[!is.na(x)]
-  m  <- mean(x)
-  se <- sd(x) / sqrt(length(x))
-  z  <- qnorm(1 - (1 - conf)/2)
-  data.frame(y = m, ymin = m - z*se, ymax = m + z*se)
+data_brands <- data %>% filter(Markė %in% top_brands)
+
+p1 <- ggplot(data_brands, aes(x = Markė, y = `CO2 emisijos (g/km)`, fill = Markė)) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = rainbow(length(top_brands))) +
+  theme_minimal() +
+  labs(title = "Top 10 markių pagal vidutinę CO2 emisiją",
+       x = "Markė",
+       y = "CO2 emisijos (g/km)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        legend.position = "none")
+print(p1)
+
+
+# ===== 2. Top 10 modelių pagal CO2 =====
+top_models <- data %>%
+  group_by(Modelis) %>%
+  filter(n() >= 10) %>%
+  summarise(mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE)) %>%
+  arrange(desc(mean_CO2)) %>%
+  slice_head(n = 10) %>%
+  pull(Modelis)
+
+data_models <- data %>% filter(Modelis %in% top_models)
+
+p2 <- ggplot(data_models, aes(x = Modelis, y = `CO2 emisijos (g/km)`, fill = Modelis)) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = rainbow(length(top_models))) +
+  theme_minimal() +
+  labs(title = "Top 10 modelių pagal vidutinę CO2 emisiją",
+       x = "Modelis",
+       y = "CO2 emisijos (g/km)") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        legend.position = "none")
+print(p2)
+
+
+# ===== Funkcija kategoriniams kintamiesiems su vaivorykšte =====
+plot_box_rainbow <- function(data, var_name) {
+  n_levels <- length(unique(data[[var_name]]))
+  colors <- rainbow(n_levels)
+  ggplot(data, aes(x = .data[[var_name]], y = `CO2 emisijos (g/km)`, fill = .data[[var_name]])) +
+    geom_boxplot(color = "black") +
+    scale_fill_manual(values = colors) +
+    theme_minimal() +
+    labs(title = paste("CO2 emisijos pagal", var_name),
+         x = var_name,
+         y = "CO2 emisijos (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 90, hjust = 1),
+          legend.position = "none")
 }
 
-# ── Išsilavinimas
-ggplot(data, aes(x = Education, y = Salary)) +
-  stat_summary(fun = mean, geom = "point", size = 4, color = "blue") +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15, color = "black") +
-  scale_x_discrete(limits = c("Vidurinis išsilavinimas", "Bakalauro laipsnis", "Magistro laipsnis", "Daktaro laipsnis")) +
-  labs(title = "Vidurkiai ir 95% PI pagal išsilavinimą",
-       x = "Išsilavinimas", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema
-```
+# 3. Kėbulo tipas
+p3 <- plot_box_rainbow(data, "Kėbulo tipas")
+print(p3)
 
-```{r}
-# ── Vietovė
-ggplot(data, aes(x = Location, y = Salary)) +
-  stat_summary(fun = mean, geom = "point", size = 4, color = "blue") +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  labs(title = "Vidurkiai ir 95% PI pagal vietovę",
-       x = "Vietovė", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema
-```
+# 4. Pavarų dėžės tipas
+p4 <- plot_box_rainbow(data, "Pavarų dėžės tipas")
+print(p4)
 
-```{r}
-# ── Pareigos
-ggplot(data, aes(x = Job_Title, y = Salary)) +
-  stat_summary(fun = mean, geom = "point", size = 4, color = "blue") +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  labs(title = "Vidurkiai ir 95% PI pagal pareigas",
-       x = "Pareigos", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema
+# 5. Kuro tipas
+p5 <- plot_box_rainbow(data, "Kuro tipas")
+print(p5)
 ```
-
 ```{r}
-# ── Lytis
-ggplot(data, aes(x = Gender, y = Salary)) +
-  stat_summary(fun = mean, geom = "point", size = 4, color = "blue") +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  labs(title = "Vidurkiai ir 95% PI pagal lytį",
-       x = "Lytis", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema
-```
+library(dplyr)
 
-```{r}
-# 95% PI (mean ± 1.96*SE)
-mean_ci95 <- function(x, conf = 0.95) {
-  x <- x[!is.na(x)]
-  m  <- mean(x); se <- sd(x)/sqrt(length(x)); z <- qnorm(1-(1-conf)/2)
-  data.frame(y = m, ymin = m - z*se, ymax = m + z*se)
+# Funkcija dažnių lentelei kaip data frame
+freq_table_df <- function(data, var_name) {
+  data %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    #mutate(Percentage = round(Count / sum(Count) * 100, 2)) %>%
+    arrange(desc(Count))
 }
 
-# bendras "zoom" į 5–95 % atlyginimų intervalą (kad nebūtų "plokščios" kolonos)
-ylims <- as.numeric(quantile(data$Salary, c(0.05, 0.95), na.rm = TRUE))
+# 1. Markė
+freq_marke <- freq_table_df(data, "Markė")
 
-# ── Išsilavinimas: spalvos pagal kategoriją, rikiuota pagal vidurkį
-ggplot(data, aes(x = reorder(Education, Salary, mean), y = Salary, fill = Education)) +
-  stat_summary(fun = mean, geom = "point", size = 4, alpha = 0.9) +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  scale_fill_brewer(palette = "Set2") +
-  coord_cartesian(ylim = ylims) +
-  labs(title = "Vidurkiai ir 95% PI pagal išsilavinimą",
-       x = "Išsilavinimas", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 15, hjust = 1))
+# 2. Modelis
+freq_modelis <- freq_table_df(data, "Modelis")
+
+# 3. Kėbulo tipas
+freq_kebulas <- freq_table_df(data, "Kėbulo tipas")
+
+# 4. Pavarų dėžės tipas
+freq_pavare <- freq_table_df(data, "Pavarų dėžės tipas")
+
+# 5. Kuro tipas
+freq_kuras <- freq_table_df(data, "Kuro tipas")
 ```
 
-```{r}
-# ── Vietovė: spalvos pagal kategoriją
-ggplot(data, aes(x = reorder(Location, Salary, mean), y = Salary, fill = Location)) +
-  stat_summary(fun = mean, geom = "point", size = 4, alpha = 0.9) +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  scale_fill_brewer(palette = "Pastel1") +
-  coord_cartesian(ylim = ylims) +
-  labs(title = "Vidurkiai ir 95% PI pagal vietovę",
-       x = "Vietovė", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 15, hjust = 1))
-```
 
 ```{r}
-# ── Pareigos: daug kategorijų → flip'intas grafikas, kad būtų skaitoma
-ggplot(data, aes(x = reorder(Job_Title, Salary, mean), y = Salary, fill = Job_Title)) +
-  stat_summary(fun = mean, geom = "point", size = 4, alpha = 0.9) +
-  stat_summary(fun.data = mean_ci95, geom = "errorbar", width = 0.15) +
-  scale_fill_brewer(palette = "Set3") +
-  coord_cartesian(ylim = ylims) +
-  labs(title = "Vidurkiai ir 95% PI pagal pareigas",
-       x = "Pareigos", y = "Atlyginimas (USD tūkst.)") +
-  mano_tema +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 30, hjust = 1))
-```
+library(dplyr)
+library(ggplot2)
 
-```{r}
-# ------------------- 6. Sklaidos diagramos -------------------
-plot(data$Experience, data$Salary,
-     col="steelblue", pch=19,
-     main="Darbo patirtis ir atlyginimas",
-     xlab="Darbo patirtis (m.)", ylab="Atlyginimas (USD tūkst.)")
-abline(lm(Salary ~ Experience, data=data), col="red", lwd=2)
-legend("topleft", legend=paste("Koreliacija:", round(cor(data$Experience, data$Salary),2)), bty="n")
-```
+# Funkcija: vidurkis su dispersija kaip taškas + klaidų juosta
+mean_point_plot <- function(data, var_name) {
+  summary_df <- data %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(
+      mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      sd_CO2 = sd(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      n = n(),
+      .groups = "drop"
+    ) %>%
+    mutate(se = sd_CO2 / sqrt(n))  # standartinė paklaida, jei nori
 
-```{r}
-plot(data$Age, data$Salary,
-     col="forestgreen", pch=19,
-     main="Amžius ir atlyginimas",
-     xlab="Amžius (m.)", ylab="Atlyginimas (USD tūkst.)")
-abline(lm(Salary ~ Age, data=data), col="red", lwd=2)
-legend("topleft", legend=paste("Koreliacija:", round(cor(data$Age, data$Salary),2)), bty="n")
+  n_levels <- nrow(summary_df)
+  colors <- rainbow(n_levels)
+
+  ggplot(summary_df, aes(x = .data[[var_name]], y = mean_CO2, color = .data[[var_name]])) +
+    geom_point(size = 3) +  # vidurkio taškas
+    geom_errorbar(aes(ymin = mean_CO2 - sd_CO2, ymax = mean_CO2 + sd_CO2), width = 0.2) +
+    scale_color_manual(values = colors) +
+    theme_minimal() +
+    labs(title = paste("Vidutinė CO2 emisija pagal", var_name),
+         x = var_name,
+         y = "Vidutinė CO2 emisija (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "none")
+}
+
+# 1. Markė
+p_mean_marke <- mean_point_plot(data, "Markė")
+print(p_mean_marke)
+
+# 2. Modelis
+p_mean_modelis <- mean_point_plot(data, "Modelis")
+print(p_mean_modelis)
+
+# 3. Kėbulo tipas
+p_mean_kebulas <- mean_point_plot(data, "Kėbulo tipas")
+print(p_mean_kebulas)
+
+# 4. Pavarų dėžės tipas
+p_mean_pavare <- mean_point_plot(data, "Pavarų dėžės tipas")
+print(p_mean_pavare)
+
+# 5. Kuro tipas
+p_mean_kuras <- mean_point_plot(data, "Kuro tipas")
+print(p_mean_kuras)
 ```
