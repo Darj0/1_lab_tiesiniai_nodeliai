@@ -1,5 +1,5 @@
 ---
-title: "test"
+title: "tm1lab"
 author: "vilte"
 date: "`r Sys.Date()`"
 output: pdf_document
@@ -16,8 +16,9 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r}
-#data <- read.csv("/Users/vilte/Desktop/archive/CO2 Emissions_Canada.csv", stringsAsFactors = FALSE)
-data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = TRUE)
+library(dplyr)
+data <- read.csv("/Users/vilte/Desktop/archive/CO2 Emissions_Canada.csv", stringsAsFactors = FALSE)
+#data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = TRUE)
 
 data <- data[, - (ncol(data) - 1)]
 
@@ -34,6 +35,28 @@ names(data) <- c("Markė",
                  "Vidutinės kuro sąnaudos (l/100km)",
                  "Vidutinės kuro sąnaudos (mpg)",
                  "CO2 emisijos (g/km)")
+
+library(dplyr)
+
+data <- data %>%
+  mutate(`Kėbulo tipas` = recode(`Kėbulo tipas`,
+    "COMPACT"                  = "Hečbekas",
+    "SUV - SMALL"              = "Universalas (mažas visureigis)",
+    "MID-SIZE"                 = "Sedanas",
+    "TWO-SEATER"               = "Kupė",
+    "MINICOMPACT"              = "Hečbekas (mini)",
+    "SUBCOMPACT"               = "Hečbekas (subkompaktinis)",
+    "FULL-SIZE"                = "Limuzinas",
+    "STATION WAGON - SMALL"    = "Universalas (mažas)",
+    "SUV - STANDARD"           = "Universalas (standartinis visureigis)",
+    "VAN - CARGO"              = "Krovininis furgonas",
+    "VAN - PASSENGER"          = "Keleivinis furgonas",
+    "PICKUP TRUCK - STANDARD"  = "Pikapas (standartinis)",
+    "MINIVAN"                  = "Vienatūris",
+    "SPECIAL PURPOSE VEHICLE"  = "Specialios paskirties automobilis",
+    "STATION WAGON - MID-SIZE" = "Universalas (vidutinio dydžio)",
+    "PICKUP TRUCK - SMALL"     = "Pikapas (mažas)"
+  ))
 
 
 ```
@@ -137,8 +160,8 @@ p <- suppressMessages(
 )
 
 # Išsaugom kaip PNG 
-ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
-       plot = p, width = 12, height = 12, dpi = 300)
+#ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
+#       plot = p, width = 12, height = 12, dpi = 300)
 
 
 ```
