@@ -407,3 +407,23 @@ p_mean_kuras <- mean_point_plot(data, "Kuro tipas (LT)",
 print(p_mean_kuras)
 
 ```
+
+
+```{r}
+
+# multikolinearumas
+model <- lm(`CO2 emisijos (g/km)` ~ 
+              `Variklio tūris (l)` + 
+              `Cilindrų skaičius` + 
+              `Vidutinės kuro sąnaudos (l/100km)` +
+              `Kėbulo grupė` +
+              `Pavaru dežės tipai` +
+              `Kuro tipas (LT)`,
+            data = data)
+
+
+vif_values <- vif(model)
+print(vif_values)
+
+
+```
