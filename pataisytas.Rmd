@@ -1,4 +1,5 @@
 
+
 ---
 title: "tm1lab"
 author: "vilte"
@@ -184,38 +185,6 @@ library(colorspace)
 
 dep_var <- "CO2 emisijos (g/km)"
 
-# ===== Top 10 markių =====
-top_brands <- data %>%
-  group_by(Markė) %>%
-  summarise(Dažnis = n(), .groups = "drop") %>%
-  arrange(desc(Dažnis)) %>%
-  slice_head(n = 10) %>%
-  pull(Markė)
-
-brand_levels <- c(top_brands, "Kiti")
-
-data <- data %>%
-  mutate(Markė_Top = ifelse(Markė %in% top_brands, Markė, "Kiti"),
-         Markė_Top = factor(Markė_Top, levels = brand_levels))
-
-p1 <- ggplot(data, aes(x = Markė_Top, y = `CO2 emisijos (g/km)`, fill = Markė_Top)) +
-  geom_boxplot(color = "black") +
-  scale_fill_manual(values = c(rainbow_hcl(length(top_brands), c = 60, l = 80), "grey70")) +
-  theme_minimal() +
-  labs(title = "CO2 emisijos pagal Top 10 markių",
-       x = "Markė",
-       y = "CO2 emisijos (g/km)") +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-        axis.text.x = element_text(angle = 90, hjust = 1),
-        legend.position = "none",
-        axis.line.x = element_line(color = "black", linewidth = 0.5),
-        axis.line.y = element_line(color = "black", linewidth = 0.5),
-        axis.ticks = element_line(color = "black", linewidth = 0.5)
-  )
-
-print(p1)
-
-
 # ===== Funkcija kategoriniams kintamiesiems =====
 plot_box_rainbow <- function(data, var_name, title) {
   n_levels <- length(unique(data[[var_name]]))
@@ -238,15 +207,28 @@ plot_box_rainbow <- function(data, var_name, title) {
           )
 }
 
-# 3. Kėbulo tipas
+#  Fiat modeliai
+fiat_df <- data %>%
+  filter(Markė == "FIAT")
+
+fiat_df <- fiat_df %>%
+  group_by(Modelis) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+p2 <- plot_box_rainbow(fiat_df, "Modelis", "CO2 emisijos pagal Fiat modelius") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p2)
+
+#  Kėbulo tipas
 p3 <- plot_box_rainbow(data, "Kėbulo tipas", "CO2 emisijos pagal kėbulo tipą")
 print(p3)
 
-# 4. Pavarų dėžės tipas
+#  Pavarų dėžės tipas
 p4 <- plot_box_rainbow(data, "Pavarų dėžės tipas", "CO2 emisijos pagal pavarų dėžės tipą")
 print(p4)
 
-# 5. Kuro tipas
+#  Kuro tipas
 data <- data %>%
   filter(`Kuro tipas` != "Gamtinės dujos")
 
@@ -269,18 +251,19 @@ freq_table_df <- function(data, var_name) {
     arrange(desc(Dažnis))
 }
 
-freq_marke <- freq_table_df(data, "Markė_Top")
+# Fiat modeliai
+freq_fiat <- freq_table_df(fiat_df, "Modelis")
 
-# 3. Kėbulo tipas
+# Kėbulo tipas
 freq_kebulas <- freq_table_df(data, "Kėbulo tipas")
 
-# 4. Pavarų dėžės tipas
+# Pavarų dėžės tipas
 freq_pavaros <- freq_table_df(data, "Pavarų dėžės tipas")
 
-# 5. Kuro tipas
+# Kuro tipas
 freq_kuras <- freq_table_df(data, "Kuro tipas")
 
-freq_marke
+freq_fiat
 freq_kebulas
 freq_pavaros
 freq_kuras
@@ -315,34 +298,35 @@ mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black
     theme_minimal() +
     labs(title = title,
          x = var_name,
-         y = "Vidutinės CO2 emisijos (g/km)") +
+         y = "CO2 emisijos (g/km)") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-          axis.text.x = element_text(angle = 90, hjust = 1),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
           axis.line.x = element_line(color = "black", linewidth = 0.5),
           axis.line.y = element_line(color = "black", linewidth = 0.5),
           axis.ticks = element_line(color = "black", linewidth = 0.5))
 }
 
-# 1. Markė 
-p_mean_marke <- mean_point_plot(data, "Markė_Top",
+# Markė 
+p_mean_modeliai <- mean_point_plot(fiat_df, "Modelis",
                                 color = "navy",
-                                title = "Vidutinės CO2 emisijos pagal TOP 10 markių")
-print(p_mean_marke)
+                                title = "Vidutinės CO2 emisijos pagal Fiat modelius") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p_mean_modeliai)
 
 
-# 3. Kėbulo tipas 
+# Kėbulo tipas 
 p_mean_kebulas <- mean_point_plot(data, "Kėbulo tipas",
                                   color = "black",
                                   title = "Vidutinės CO2 emisijos pagal kėbulo tipą")
 print(p_mean_kebulas)
 
-# 4. Pavarų dėžės tipas 
+# Pavarų dėžės tipas 
 p_mean_pavare <- mean_point_plot(data, "Pavarų dėžės tipas",
                                  color = "darkred",
                                  title = "Vidutinės CO2 emisijos pagal pavarų dėžės tipą")
 print(p_mean_pavare)
 
-# 5. Kuro tipas 
+# Kuro tipas 
 p_mean_kuras <- mean_point_plot(data, "Kuro tipas",
                                 color = "darkgreen",
                                 title = "Vidutinės CO2 emisijos pagal kuro tipą") 
@@ -355,17 +339,17 @@ print(p_mean_kuras)
 ```{r}
 # Multikolinearumas
 model <- lm(`CO2 emisijos (g/km)` ~ 
-              `Variklio tūris (l)` + 
-              `Cilindrų skaičius` + 
-              `Vidutinės kuro sąnaudos (l/100km)` +
-              `Kėbulo tipas` +
-              `Pavarų dėžės tipas` +
-              `Kuro tipas`,
-               data = data)
+                 `Cilindrų skaičius` +
+                 `Kuro sąnaudos greitkelyje (l/100km)` +
+                 `Kuro sąnaudos mieste (l/100km)` +
+                 `Variklio tūris (l)` +
+                 `Vidutinės kuro sąnaudos (l/100km)`,
+                 data = data)
 
 
 vif_values <- vif(model)
 print(vif_values)
 
-
 ```
+
+
