@@ -1,3 +1,4 @@
+
 ---
 title: "tm1lab"
 author: "vilte"
@@ -16,10 +17,9 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r}
-library(dplyr)
-library(stringr)
 
-data <- read.csv("/Users/darjabaranova/Documents/VU/3_kursas/tiesiniai_metodai/CO2 Emissions_Canada.csv", header = TRUE)
+#data <- read.csv("/Users/darjabaranova/Documents/VU/3_kursas/tiesiniai_metodai/CO2 Emissions_Canada.csv", header = TRUE)
+data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = TRUE)
 
 data <- data[, - (ncol(data) - 1)]
 
@@ -37,62 +37,34 @@ names(data) <- c("Markė",
                  "Vidutinės kuro sąnaudos (mpg)",
                  "CO2 emisijos (g/km)")
 
-library(dplyr)
 
-data <- data %>%
-  mutate(
-    `Kėbulo tipas` = str_trim(`Kėbulo tipas`),
-    `Kėbulo grupė` = case_when(
-      `Kėbulo tipas` %in% c("COMPACT", "MINICOMPACT", "SUBCOMPACT") ~ "Hečbekas",
-      `Kėbulo tipas` %in% c("MID-SIZE", "FULL-SIZE")                ~ "Sedanas / Limuzinas",
-      `Kėbulo tipas` %in% c("TWO-SEATER")                           ~ "Kupė / 2 vietų",
-      `Kėbulo tipas` %in% c("STATION WAGON - SMALL", "STATION WAGON - MID-SIZE") ~ "Universalas",
-      `Kėbulo tipas` %in% c("SUV - SMALL", "SUV - STANDARD")        ~ "SUV",
-      `Kėbulo tipas` %in% c("MINIVAN")                              ~ "Vienatūris",
-      `Kėbulo tipas` %in% c("VAN - CARGO", "VAN - PASSENGER")       ~ "Furgonas",
-      `Kėbulo tipas` %in% c("PICKUP TRUCK - SMALL", "PICKUP TRUCK - STANDARD") ~ "Pikapas",
-      `Kėbulo tipas` %in% c("SPECIAL PURPOSE VEHICLE")              ~ "Specialus",
-      is.na(`Kėbulo tipas`) ~ NA_character_,
-      TRUE ~ "Kita"
-    )
-  )
-
-kuras_map_lt <- c(
-  X = "Benzinas (reguliarus)",
-  Z = "Benzinas (premium)",
-  D = "Dyzelinas",
-  E = "Etanolis (E85)",
-  N = "Gamtinės dujos"
-)
-
-data <- data %>%
-  mutate(
-    .fuel_src = str_to_upper(str_squish(`Kuro tipas`)),
-    fuel_code = str_extract(.fuel_src, "^[A-Z]"),  # pirmoji raidė: X/Z/D/E/N
-    `Kuro tipas (LT)` = dplyr::recode(
-      fuel_code,
-      !!!as.list(kuras_map_lt),
-      .default = "Kita"
-    )
-  ) %>%
-  select(-.fuel_src)
+data$"Kėbulo tipas" <- with(data,
+  ifelse(`Kėbulo tipas` %in% c("SUV - SMALL", "SUV - STANDARD"), "SUV",
+  ifelse(`Kėbulo tipas` %in% c("MID-SIZE", "COMPACT", "SUBCOMPACT", 
+                               "MINICOMPACT", "FULL-SIZE", "TWO-SEATER"),
+         "Lengvieji automobiliai",
+  ifelse(`Kėbulo tipas` %in% c("STATION WAGON - SMALL", "STATION WAGON - MID-SIZE"),
+         "Universalai",
+  ifelse(`Kėbulo tipas` %in% c("PICKUP TRUCK - SMALL", "PICKUP TRUCK - STANDARD"),
+         "Pikapai",
+  ifelse(`Kėbulo tipas` %in% c("MINIVAN", "VAN - PASSENGER", "VAN - CARGO"),
+         "Vienatūriai",
+  ifelse(`Kėbulo tipas` == "SPECIAL PURPOSE VEHICLE", 
+         "Specialieji", NA)))))))
 
 
-data <- data %>%
-  mutate(
-    .src  = str_to_upper(str_squish(`Pavarų dėžės tipas`)),
-    code  = str_extract(.src, "^[A-Z]+"),  # A, AM, AS, AV, M
-    `Pavaru dežės tipai` = dplyr::recode(
-      code,
-      "A"  = "Automatinė",
-      "AM" = "Automatinė (automatinė mechaninė)",
-      "AS" = "Automatinė (su perjungimo pasirinkimu)",
-      "AV" = "CVT (nepertraukiamo kintamumo)",
-      "M"  = "Mechaninė",
-      .default = "Kita"
-    )
-  ) %>%
-  select(-.src, -code)
+data$"Pavarų dėžės tipas" <- ifelse(grepl("^AM", data$`Pavarų dėžės tipas`), "Automatizuota mechaninė",
+                             ifelse(grepl("^AS", data$`Pavarų dėžės tipas`), "Automatinė su rankiniu perjungimu",
+                             ifelse(grepl("^AV", data$`Pavarų dėžės tipas`), "Bepakopė (CVT)",
+                             ifelse(grepl("^A",  data$`Pavarų dėžės tipas`), "Automatinė",
+                             ifelse(grepl("^M",  data$`Pavarų dėžės tipas`), "Mechaninė", NA)))))
+
+
+data$"Kuro tipas" <- ifelse(data$`Kuro tipas` == "X", "Įprastas benzinas",
+                     ifelse(data$`Kuro tipas` == "Z", "Aukštos kokybės benzinas",
+                     ifelse(data$`Kuro tipas` == "D", "Dyzelinas",
+                     ifelse(data$`Kuro tipas` == "E", "Etanolis (E85)",
+                     ifelse(data$`Kuro tipas` == "N", "Gamtinės dujos", NA)))))
 
 ```
 
@@ -146,18 +118,18 @@ library(GGally)
 library(ggplot2)
 
 # 1. Paruošiami kiekybiniai kintamieji
-numeric_vars <- data[, sapply(data, is.numeric)]
+numeric_vars <- data[, c("Variklio tūris (l)",
+                          "Cilindrų skaičius",
+                          "Kuro sąnaudos mieste (l/100km)",
+                          "Kuro sąnaudos greitkelyje (l/100km)",
+                          "CO2 emisijos (g/km)")]
+
 colnames(numeric_vars) <- c("Variklio tūris (l)",
                             "Cilindrų\nskaičius",
                             "Kuro sąnaudos\nmieste (l/100km)",
                             "Kuro sąnaudos\ngreitkelyje (l/100km)",
-                            "Vidutinės kuro\nsąnaudos (l/100km)",
-                            "Vidutinės kuro\nsąnaudos (mpg)",
                             "CO2 emisijos (g/km)")
 
-numeric_vars <- numeric_vars[, !colnames(numeric_vars) %in% 
-                                c("Vidutinės kuro\nsąnaudos (l/100km)",
-                                  "Vidutinės kuro\nsąnaudos (mpg)")]
 # 2. Koreliacijų matrica
 cor_matrix <- cor(numeric_vars, use = "complete.obs")
 
@@ -170,7 +142,7 @@ corrplot(cor_matrix,
          number.cex = 0.8,    
          addCoef.col = "black") 
 
-# 4. Sklaidos grafikų matrica
+# 4. Sklaidos diagramų matrica
 upper_fun <- function(data, mapping, ...) {
   ggplot(data, mapping) +
     geom_point(alpha = 0.5, color = "deepskyblue3") +         
@@ -188,47 +160,49 @@ diag_fun <- function(data, mapping, ...) {
 p <- suppressMessages(
   suppressWarnings(
     ggpairs(numeric_vars,
-        upper = list(continuous = wrap("points", alpha = 0.5, color = "deepskyblue3")),
-        lower = list(continuous = wrap("smooth_loess", color = "red")),
-        diag  = list(continuous = wrap("densityDiag")),    
+            upper = list(continuous = upper_fun),   
+            lower = list(continuous = "blank"),     
+            diag  = list(continuous = "blank"),    
             progress = FALSE) +
-      ggtitle("Sklaidos grafikų matrica") +
+      ggtitle("Sklaidos diagramų matrica") +
       theme(plot.title = element_text(hjust = 0.5, face = "bold"))
   )
 )
 
 # Išsaugom kaip PNG 
-#ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
-#       plot = p, width = 12, height = 12, dpi = 300)
+ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
+       plot = p, width = 12, height = 12, dpi = 300)
 
 
 ```
+
 
 ```{r}
 library(dplyr)
 library(ggplot2)
 library(colorspace)
 
-
 dep_var <- "CO2 emisijos (g/km)"
 
-# ===== 1. Top 10 markių =====
+# ===== Top 10 markių =====
 top_brands <- data %>%
-  dplyr::group_by(Markė) %>%
-  dplyr::summarise(Dažnis = dplyr::n(), .groups = "drop") %>%
-  dplyr::arrange(desc(Dažnis)) %>%
-  dplyr::slice_head(n = 10) %>%
-  dplyr::pull(Markė)
+  group_by(Markė) %>%
+  summarise(Dažnis = n(), .groups = "drop") %>%
+  arrange(desc(Dažnis)) %>%
+  slice_head(n = 10) %>%
+  pull(Markė)
+
+brand_levels <- c(top_brands, "Kiti")
 
 data <- data %>%
-  mutate(Markė_top = ifelse(Markė %in% top_brands, Markė, "Kiti"))
+  mutate(Markė_Top = ifelse(Markė %in% top_brands, Markė, "Kiti"),
+         Markė_Top = factor(Markė_Top, levels = brand_levels))
 
-# Grafikas pagal Markė_top
-p1 <- ggplot(data, aes(x = Markė_top, y = `CO2 emisijos (g/km)`, fill = Markė_top)) +
+p1 <- ggplot(data, aes(x = Markė_Top, y = `CO2 emisijos (g/km)`, fill = Markė_Top)) +
   geom_boxplot(color = "black") +
-  scale_fill_manual(values = rainbow_hcl(length(unique(data$Markė_top)), c = 60, l = 80)) +
+  scale_fill_manual(values = c(rainbow_hcl(length(top_brands), c = 60, l = 80), "grey70")) +
   theme_minimal() +
-  labs(title = "Top 10 markių + Kiti",
+  labs(title = "CO2 emisijos pagal Top 10 markių",
        x = "Markė",
        y = "CO2 emisijos (g/km)") +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
@@ -238,9 +212,8 @@ p1 <- ggplot(data, aes(x = Markė_top, y = `CO2 emisijos (g/km)`, fill = Markė_
         axis.line.y = element_line(color = "black", linewidth = 0.5),
         axis.ticks = element_line(color = "black", linewidth = 0.5)
   )
+
 print(p1)
-
-
 
 
 # ===== Funkcija kategoriniams kintamiesiems =====
@@ -257,7 +230,7 @@ plot_box_rainbow <- function(data, var_name, title) {
          x = var_name,
          y = "CO2 emisijos (g/km)") +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-          axis.text.x = element_text(angle = 90, hjust = 1),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
           legend.position = "none",
           axis.line.x = element_line(color = "black", linewidth = 0.5),
           axis.line.y = element_line(color = "black", linewidth = 0.5),
@@ -266,64 +239,46 @@ plot_box_rainbow <- function(data, var_name, title) {
 }
 
 # 3. Kėbulo tipas
-p3 <- plot_box_rainbow(data, "Kėbulo grupė", "CO2 emisijos pagal kėbulo tipą")
+p3 <- plot_box_rainbow(data, "Kėbulo tipas", "CO2 emisijos pagal kėbulo tipą")
 print(p3)
 
 # 4. Pavarų dėžės tipas
-# 4. Pavarų dėžės tipai (naujas stulpelis)
-p4 <- plot_box_rainbow(data, "Pavaru dežės tipai", "CO2 emisijos pagal pavarų dėžės tipą")
+p4 <- plot_box_rainbow(data, "Pavarų dėžės tipas", "CO2 emisijos pagal pavarų dėžės tipą")
 print(p4)
 
-
-# 5. Kuro tipas (pašalinam "N")
-# Pašalinam stebėjimus su kuro tipu "N"
-# Pašaliname 'Gamtinės dujos' iš LT stulpelio
+# 5. Kuro tipas
 data <- data %>%
-  dplyr::filter(`Kuro tipas (LT)` != "Gamtinės dujos")
+  filter(`Kuro tipas` != "Gamtinės dujos")
 
-# Grafikas pagal LT pavadinimus
-p5 <- plot_box_rainbow(data, "Kuro tipas (LT)", "CO2 emisijos pagal kuro tipą") +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
-
+p5 <- plot_box_rainbow(data, "Kuro tipas", "CO2 emisijos pagal kuro tipą") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  
 print(p5)
 
 
-
 ```
+
+
 ```{r}
 library(dplyr)
 
 # Funkcija dažnių lentelei 
-library(dplyr)
-
 freq_table_df <- function(data, var_name) {
   data %>%
-    dplyr::group_by(.data[[var_name]]) %>%
-    dplyr::summarise(Dažnis = dplyr::n(), .groups = "drop") %>%
-    dplyr::arrange(desc(Dažnis))
+    group_by(.data[[var_name]]) %>%
+    summarise(Dažnis = n(), .groups = "drop") %>%
+    arrange(desc(Dažnis))
 }
 
-
-# 1. Markė
-freq_marke <- data %>%
-  dplyr::mutate(
-    Markė_top = ifelse(Markė %in% top_brands, Markė, "Kiti"),
-    Markė_top = factor(Markė_top, levels = c(top_brands, "Kiti"))  # "Kiti" paskutinis
-  ) %>%
-  freq_table_df("Markė_top")
-
-
+freq_marke <- freq_table_df(data, "Markė_Top")
 
 # 3. Kėbulo tipas
-freq_kebulas <- freq_table_df(data, "Kėbulo grupė")
+freq_kebulas <- freq_table_df(data, "Kėbulo tipas")
 
 # 4. Pavarų dėžės tipas
-freq_pavaros <- freq_table_df(data, "Pavaru dežės tipai")
+freq_pavaros <- freq_table_df(data, "Pavarų dėžės tipas")
 
 # 5. Kuro tipas
-data <- data %>%
- dplyr::filter(`Kuro tipas (LT)` != "Gamtinės dujos")
-freq_kuras <- freq_table_df(data, "Kuro tipas (LT)")
+freq_kuras <- freq_table_df(data, "Kuro tipas")
 
 freq_marke
 freq_kebulas
@@ -343,16 +298,15 @@ mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black
     df <- df %>% filter(.data[[var_name]] %in% filter_values)
   }
   
- summary_df <- df %>%
-  dplyr::group_by(.data[[var_name]]) %>%
-  dplyr::summarise(
-    mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE),
-    sd_CO2   = sd(`CO2 emisijos (g/km)`, na.rm = TRUE),
-    n        = dplyr::n(),   # <-- pakeista
-    .groups  = "drop"
-  ) %>%
-  dplyr::mutate(se = sd_CO2 / sqrt(n))
-
+  summary_df <- df %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(
+      mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      sd_CO2   = sd(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      n        = n(),
+      .groups  = "drop"
+    ) %>%
+    mutate(se = sd_CO2 / sqrt(n))
   
   ggplot(summary_df, aes(x = .data[[var_name]], y = mean_CO2)) +
     geom_point(size = 3, color = color) +
@@ -370,56 +324,44 @@ mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black
 }
 
 # 1. Markė 
-data <- data %>%
-  mutate(
-    Markė_top = ifelse(Markė %in% top_brands, Markė, "Kiti"),
-    Markė_top = factor(Markė_top, levels = c(top_brands, "Kiti"))
-  )
-
-p_mean_marke <- mean_point_plot(
-  data,
-  var_name = "Markė_top",
-  color = "navy",
-  title = "Vidutinės CO2 emisijos pagal TOP 10 markių ir Kiti"
-)
+p_mean_marke <- mean_point_plot(data, "Markė_Top",
+                                color = "navy",
+                                title = "Vidutinės CO2 emisijos pagal TOP 10 markių")
 print(p_mean_marke)
 
 
-
-
 # 3. Kėbulo tipas 
-p_mean_kebulas <- mean_point_plot(data, "Kėbulo grupė",
-                                  color = "darkviolet",
+p_mean_kebulas <- mean_point_plot(data, "Kėbulo tipas",
+                                  color = "black",
                                   title = "Vidutinės CO2 emisijos pagal kėbulo tipą")
 print(p_mean_kebulas)
 
 # 4. Pavarų dėžės tipas 
-p_mean_pavare <- mean_point_plot(data, "Pavaru dežės tipai",
+p_mean_pavare <- mean_point_plot(data, "Pavarų dėžės tipas",
                                  color = "darkred",
                                  title = "Vidutinės CO2 emisijos pagal pavarų dėžės tipą")
 print(p_mean_pavare)
 
 # 5. Kuro tipas 
-p_mean_kuras <- mean_point_plot(data, "Kuro tipas (LT)",
+p_mean_kuras <- mean_point_plot(data, "Kuro tipas",
                                 color = "darkgreen",
-                                title = "Vidutinės CO2 emisijos pagal kuro tipą") +
-                                theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+                                title = "Vidutinės CO2 emisijos pagal kuro tipą") 
 print(p_mean_kuras)
+
 
 ```
 
 
 ```{r}
-
-# multikolinearumas
+# Multikolinearumas
 model <- lm(`CO2 emisijos (g/km)` ~ 
               `Variklio tūris (l)` + 
               `Cilindrų skaičius` + 
               `Vidutinės kuro sąnaudos (l/100km)` +
-              `Kėbulo grupė` +
-              `Pavaru dežės tipai` +
-              `Kuro tipas (LT)`,
-            data = data)
+              `Kėbulo tipas` +
+              `Pavarų dėžės tipas` +
+              `Kuro tipas`,
+               data = data)
 
 
 vif_values <- vif(model)
