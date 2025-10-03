@@ -1,0 +1,424 @@
+
+
+---
+title: "tm1lab"
+author: "vilte"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+data <- read.csv("/Users/darjabaranova/Documents/VU/3_kursas/tiesiniai_metodai/CO2 Emissions_Canada.csv", header = TRUE)
+#data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = TRUE)
+
+data <- data[, - (ncol(data) - 1)]
+
+data$logCO2 <- log(data$CO2.Emissions.g.km.)
+names(data) <- c("Markė",
+                 "Modelis",
+                 "Kėbulo tipas",
+                 "Variklio tūris (l)",
+                 "Cilindrų skaičius",
+                 "Pavarų dėžės tipas",
+                 "Kuro tipas",
+                 "Kuro sąnaudos mieste (l/100km)",
+                 "Kuro sąnaudos greitkelyje (l/100km)",
+                 "Vidutinės kuro sąnaudos (l/100km)",
+                 "Vidutinės kuro sąnaudos (mpg)",
+                 "CO2 emisijos (g/km)")
+
+
+data$"Kėbulo tipas" <- with(data,
+  ifelse(`Kėbulo tipas` %in% c("SUV - SMALL", "SUV - STANDARD"), "SUV",
+  ifelse(`Kėbulo tipas` %in% c("MID-SIZE", "COMPACT", "SUBCOMPACT", 
+                               "MINICOMPACT", "FULL-SIZE", "TWO-SEATER"),
+         "Lengvieji automobiliai",
+  ifelse(`Kėbulo tipas` %in% c("STATION WAGON - SMALL", "STATION WAGON - MID-SIZE"),
+         "Universalai",
+  ifelse(`Kėbulo tipas` %in% c("PICKUP TRUCK - SMALL", "PICKUP TRUCK - STANDARD"),
+         "Pikapai",
+  ifelse(`Kėbulo tipas` %in% c("MINIVAN", "VAN - PASSENGER", "VAN - CARGO"),
+         "Vienatūriai",
+  ifelse(`Kėbulo tipas` == "SPECIAL PURPOSE VEHICLE", 
+         "Specialieji", NA)))))))
+
+
+data$"Pavarų dėžės tipas" <- ifelse(grepl("^AM", data$`Pavarų dėžės tipas`), "Automatizuota mechaninė",
+                             ifelse(grepl("^AS", data$`Pavarų dėžės tipas`), "Automatinė su rankiniu perjungimu",
+                             ifelse(grepl("^AV", data$`Pavarų dėžės tipas`), "Bepakopė (CVT)",
+                             ifelse(grepl("^A",  data$`Pavarų dėžės tipas`), "Automatinė",
+                             ifelse(grepl("^M",  data$`Pavarų dėžės tipas`), "Mechaninė", NA)))))
+
+
+data$"Kuro tipas" <- ifelse(data$`Kuro tipas` == "X", "Įprastas benzinas",
+                     ifelse(data$`Kuro tipas` == "Z", "Aukštos kokybės benzinas",
+                     ifelse(data$`Kuro tipas` == "D", "Dyzelinas",
+                     ifelse(data$`Kuro tipas` == "E", "Etanolis (E85)",
+                     ifelse(data$`Kuro tipas` == "N", "Gamtinės dujos", NA)))))
+
+```
+
+```{r}
+# Histograma su log10 transformuotomis CO2 emisijomis
+hist(data$`CO2 emisijos (g/km)`,
+     breaks = 40,
+     probability = TRUE,
+     main = "Automobilių CO2 emisijų pasiskirstymo histograma",
+     xlab = "CO2 emisijos (g/km)",
+     ylab = "Tankis",
+     col = "lightblue",
+     border = "black")
+
+# Normalioji kreivė
+x <- seq(min(data$`CO2 emisijos (g/km)`, na.rm=TRUE), max(data$`CO2 emisijos (g/km)`, na.rm=TRUE), length=100)
+y <- dnorm(x, 
+           mean=mean(data$`CO2 emisijos (g/km)`, na.rm=TRUE), 
+           sd=sd(data$`CO2 emisijos (g/km)`, na.rm=TRUE))
+lines(x, y, col="red", lwd=2)
+
+legend(x = 5.8, y = 1.6,
+       legend = c("CO2 emisijų pasiskirstymas", "Normalumo kreivė"),
+       pch    = c(22, NA),              
+       pt.cex = c(2, NA),               
+       col    = c("black", "red"),      
+       pt.bg  = c("lightblue", NA),     
+       pt.lwd = c(1.5, NA),             
+       lwd    = c(NA, 2),
+       bty    = "n")
+
+#QQ grafikas
+library(car)
+
+qqPlot(data$`CO2 emisijos (g/km)`, 
+       dist = "norm",
+       main = "QQ CO2 emisijų grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos CO2 emisijos (g/km)")
+
+```
+```{r}
+# Statistinis Andersono-Darlingo testas
+library(nortest)
+ad.test(data$`CO2 emisijos (g/km)`)
+```
+
+```{r}
+library(corrplot)
+library(GGally)
+library(ggplot2)
+
+# 1. Paruošiami kiekybiniai kintamieji
+numeric_vars <- data[, c("Variklio tūris (l)",
+                          "Cilindrų skaičius",
+                          "Kuro sąnaudos mieste (l/100km)",
+                          "Kuro sąnaudos greitkelyje (l/100km)",
+                          "CO2 emisijos (g/km)")]
+
+colnames(numeric_vars) <- c("Variklio tūris (l)",
+                            "Cilindrų\nskaičius",
+                            "Kuro sąnaudos\nmieste (l/100km)",
+                            "Kuro sąnaudos\ngreitkelyje (l/100km)",
+                            "CO2 emisijos (g/km)")
+
+# 2. Koreliacijų matrica
+cor_matrix <- cor(numeric_vars, use = "complete.obs")
+
+# 3. Heatmap su numbers metodu
+corrplot(cor_matrix,
+         method = "number",  
+         type = "upper",      
+         tl.col = "black",    
+         tl.srt = 90,         
+         number.cex = 0.8,    
+         addCoef.col = "black") 
+
+# 4. Sklaidos diagramų matrica
+upper_fun <- function(data, mapping, ...) {
+  ggplot(data, mapping) +
+    geom_point(alpha = 0.5, color = "deepskyblue3") +         
+    geom_smooth(method = "lm", se = FALSE, color = "red", lwd = 1) + 
+    theme_minimal()
+}
+
+diag_fun <- function(data, mapping, ...) {
+  var <- as_label(mapping$x)
+  ggplot() +
+    annotate("text", x = 0.5, y = 0.5, label = var, size = 4, fontface = "bold") +
+    theme_void()
+}
+
+p <- suppressMessages(
+  suppressWarnings(
+    ggpairs(numeric_vars,
+            upper = list(continuous = upper_fun),   
+            lower = list(continuous = "blank"),     
+            diag  = list(continuous = "blank"),    
+            progress = FALSE) +
+      ggtitle("Sklaidos diagramų matrica") +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  )
+)
+
+# Išsaugom kaip PNG 
+#ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
+#       plot = p, width = 12, height = 12, dpi = 300)
+
+
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(colorspace)
+
+dep_var <- "CO2 emisijos (g/km)"
+
+# ===== Funkcija kategoriniams kintamiesiems =====
+plot_box_rainbow <- function(data, var_name, title) {
+  n_levels <- length(unique(data[[var_name]]))
+  
+  ggplot(data, aes(x = .data[[var_name]], 
+                   y = `CO2 emisijos (g/km)`, 
+                   fill = .data[[var_name]])) +
+    geom_boxplot(color = "black") +
+    scale_fill_manual(values = rainbow_hcl(n_levels, c = 60, l = 80)) +
+    theme_minimal() +
+    labs(title = title,
+         x = var_name,
+         y = "CO2 emisijos (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
+          legend.position = "none",
+          axis.line.x = element_line(color = "black", linewidth = 0.5),
+          axis.line.y = element_line(color = "black", linewidth = 0.5),
+          axis.ticks = element_line(color = "black", linewidth = 0.5)
+          )
+}
+
+#  Fiat modeliai
+audi_df <- data %>%
+  filter(Markė == "AUDI")
+
+audi_df <- audi_df %>%
+  group_by(Modelis) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+p2 <- plot_box_rainbow(audi_df, "Modelis", "CO2 emisijos pagal Fiat modelius") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p2)
+
+#  Kėbulo tipas
+p3 <- plot_box_rainbow(audi_df, "Kėbulo tipas", "CO2 emisijos pagal kėbulo tipą")
+print(p3)
+
+#  Pavarų dėžės tipas
+p4 <- plot_box_rainbow(audi_df, "Pavarų dėžės tipas", "CO2 emisijos pagal pavarų dėžės tipą")
+print(p4)
+
+#  Kuro tipas
+data <- audi_df %>%
+  filter(`Kuro tipas` != "Gamtinės dujos")
+
+p5 <- plot_box_rainbow(audi_df, "Kuro tipas", "CO2 emisijos pagal kuro tipą") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  
+print(p5)
+
+
+```
+
+
+```{r}
+library(dplyr)
+
+# Funkcija dažnių lentelei 
+freq_table_df <- function(data, var_name) {
+  data %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(Dažnis = n(), .groups = "drop") %>%
+    arrange(desc(Dažnis))
+}
+
+# Fiat modeliai
+freq_fiat <- freq_table_df(audi_df, "Modelis")
+
+# Kėbulo tipas
+freq_kebulas <- freq_table_df(audi_df, "Kėbulo tipas")
+
+# Pavarų dėžės tipas
+freq_pavaros <- freq_table_df(audi_df, "Pavarų dėžės tipas")
+
+# Kuro tipas
+freq_kuras <- freq_table_df(audi_df, "Kuro tipas")
+
+freq_fiat
+freq_kebulas
+freq_pavaros
+freq_kuras
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Funkcija vidurkio su dispersija grafiko sudarymui
+mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black", title = NULL) {
+  df <- data
+  if (!is.null(filter_values)) {
+    df <- df %>% filter(.data[[var_name]] %in% filter_values)
+  }
+  
+  summary_df <- df %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(
+      mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      sd_CO2   = sd(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      n        = n(),
+      .groups  = "drop"
+    ) %>%
+    mutate(se = sd_CO2 / sqrt(n))
+  
+  ggplot(summary_df, aes(x = .data[[var_name]], y = mean_CO2)) +
+    geom_point(size = 3, color = color) +
+    geom_errorbar(aes(ymin = mean_CO2 - sd_CO2, ymax = mean_CO2 + sd_CO2),
+                  width = 0.2, color = color) +
+    theme_minimal() +
+    labs(title = title,
+         x = var_name,
+         y = "CO2 emisijos (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
+          axis.line.x = element_line(color = "black", linewidth = 0.5),
+          axis.line.y = element_line(color = "black", linewidth = 0.5),
+          axis.ticks = element_line(color = "black", linewidth = 0.5))
+}
+
+# Fiat modeliai 
+p_mean_modeliai <- mean_point_plot(audi_df, "Modelis",
+                                color = "navy",
+                                title = "Vidutinės CO2 emisijos pagal Fiat modelius") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p_mean_modeliai)
+
+
+# Kėbulo tipas 
+p_mean_kebulas <- mean_point_plot(audi_df, "Kėbulo tipas",
+                                  color = "black",
+                                  title = "Vidutinės CO2 emisijos pagal kėbulo tipą")
+print(p_mean_kebulas)
+
+# Pavarų dėžės tipas 
+p_mean_pavare <- mean_point_plot(audi_df, "Pavarų dėžės tipas",
+                                 color = "darkred",
+                                 title = "Vidutinės CO2 emisijos pagal pavarų dėžės tipą")
+print(p_mean_pavare)
+
+# Kuro tipas 
+p_mean_kuras <- mean_point_plot(audi_df, "Kuro tipas",
+                                color = "darkgreen",
+                                title = "Vidutinės CO2 emisijos pagal kuro tipą") 
+print(p_mean_kuras)
+
+
+```
+
+
+
+
+
+
+```{r}
+# 1. Sukuriame modelį (pavyzdžiui, su audi_df)
+model <- lm(`CO2 emisijos (g/km)` ~ `Variklio tūris (l)` + 
+                                    `Cilindrų skaičius` + 
+                                    `Vidutinės kuro sąnaudos (l/100km)` +
+                                    `Kuro sąnaudos greitkelyje (l/100km)` +
+                                    `Kuro sąnaudos mieste (l/100km)`,
+            data = audi_df)
+
+# 2. Ištraukiame F-statistiką ir laisvės laipsnius
+f_value <- summary(model)$fstatistic[1]
+df1 <- summary(model)$fstatistic[2]  # m
+df2 <- summary(model)$fstatistic[3]  # n-m-1
+
+# 3. Kritinė F reikšmė pagal α = 0.05
+alpha <- 0.05
+f_crit <- qf(1 - alpha, df1, df2)
+
+# 4. Patikrinimas
+if(f_value > f_crit){
+  result <- "Atmetame H0: modelis reikšmingas"
+} else {
+  result <- "Neatmetame H0: modelis nereikšmingas"
+}
+
+# 5. Išvedame rezultatus
+cat("F-statistika =", f_value, "\n")
+cat("Laisvės laipsniai: df1 =", df1, ", df2 =", df2, "\n")
+cat("Kritinė F reikšmė (α = 0.05) =", f_crit, "\n")
+cat("Išvada:", result, "\n")
+
+summary(model)
+
+
+```
+
+
+
+```{r}
+# reikšmingų kovariančių atranka
+
+library(car)
+
+vif_values <- vif(model)
+vif_values
+step_model <- step(model, direction = "both")
+summary(step_model)
+
+
+
+
+
+```
+
+
+```{r}
+
+# Sukuriame regresijos modelį
+model <- lm(`CO2 emisijos (g/km)` ~ `Variklio tūris (l)` +
+                                    
+                                    `Vidutinės kuro sąnaudos (l/100km)` ,
+            data = audi_df)
+
+# Gauti R² ir koreguotą R²
+r_squared <- summary(model)$r.squared
+adj_r_squared <- summary(model)$adj.r.squared
+
+# Išvedame rezultatus
+cat("Determinacijos koeficientas (R²) =", r_squared, "\n")
+cat("Koreguotasis determinacijos koeficientas (Adj R²) =", adj_r_squared, "\n")
+
+# Paaiškinimas
+cat("\nInterpretacija:\n")
+cat("R² = ", round(r_squared,3), ": reiškia, kad modelis paaiškina apie", 
+    round(r_squared*100,1), "% CO2 emisijų kintamumo.\n")
+cat("Adj R² = ", round(adj_r_squared,3), ": koreguotas pagal imties dydį ir kintamųjų skaičių,\n",
+    "parodo, kiek tiksliai modelis aprašo duomenis nepriklausomai nuo kintamųjų skaičiaus.\n")
+
+
+```
+
+
