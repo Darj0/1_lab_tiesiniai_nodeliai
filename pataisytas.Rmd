@@ -1,5 +1,3 @@
-
-
 ---
 title: "tm1lab"
 author: "vilte"
@@ -67,6 +65,11 @@ data$"Kuro tipas" <- ifelse(data$`Kuro tipas` == "X", "Įprastas benzinas",
                      ifelse(data$`Kuro tipas` == "E", "Etanolis (E85)",
                      ifelse(data$`Kuro tipas` == "N", "Gamtinės dujos", NA)))))
 
+# Išrenkam Top 10 markių duomenis
+top10 <- names(sort(table(data$Markė), decreasing = TRUE))[1:min(10, length(unique(data$Markė)))]
+
+data <- subset(data, Markė %in% top10)
+
 ```
 
 ```{r}
@@ -87,7 +90,7 @@ y <- dnorm(x,
            sd=sd(data$`CO2 emisijos (g/km)`, na.rm=TRUE))
 lines(x, y, col="red", lwd=2)
 
-legend(x = 5.8, y = 1.6,
+legend(x = 5.75, y = 1.9,
        legend = c("CO2 emisijų pasiskirstymas", "Normalumo kreivė"),
        pch    = c(22, NA),              
        pt.cex = c(2, NA),               
@@ -123,12 +126,14 @@ numeric_vars <- data[, c("Variklio tūris (l)",
                           "Cilindrų skaičius",
                           "Kuro sąnaudos mieste (l/100km)",
                           "Kuro sąnaudos greitkelyje (l/100km)",
+                          "Vidutinės kuro sąnaudos (l/100km)",
                           "CO2 emisijos (g/km)")]
 
 colnames(numeric_vars) <- c("Variklio tūris (l)",
                             "Cilindrų\nskaičius",
                             "Kuro sąnaudos\nmieste (l/100km)",
                             "Kuro sąnaudos\ngreitkelyje (l/100km)",
+                            "Vidutinės kuro\nsąnaudos (l/100km)",
                             "CO2 emisijos (g/km)")
 
 # 2. Koreliacijų matrica
@@ -171,8 +176,8 @@ p <- suppressMessages(
 )
 
 # Išsaugom kaip PNG 
-ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
-       plot = p, width = 12, height = 12, dpi = 300)
+#ggsave(filename = "/Users/meliu/Desktop/scatter_matrix.png",
+#       plot = p, width = 12, height = 12, dpi = 300)
 
 
 ```
@@ -207,16 +212,8 @@ plot_box_rainbow <- function(data, var_name, title) {
           )
 }
 
-#  Fiat modeliai
-fiat_df <- data %>%
-  filter(Markė == "FIAT")
-
-fiat_df <- fiat_df %>%
-  group_by(Modelis) %>%
-  filter(n() > 1) %>%
-  ungroup()
-
-p2 <- plot_box_rainbow(fiat_df, "Modelis", "CO2 emisijos pagal Fiat modelius") +
+#  Markės
+p2 <- plot_box_rainbow(data, "Markė", "CO2 emisijos pagal 10 populiariausių markių") +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
 print(p2)
 
@@ -251,8 +248,8 @@ freq_table_df <- function(data, var_name) {
     arrange(desc(Dažnis))
 }
 
-# Fiat modeliai
-freq_fiat <- freq_table_df(fiat_df, "Modelis")
+# Markės
+freq_marke <- freq_table_df(data, "Markė")
 
 # Kėbulo tipas
 freq_kebulas <- freq_table_df(data, "Kėbulo tipas")
@@ -263,7 +260,7 @@ freq_pavaros <- freq_table_df(data, "Pavarų dėžės tipas")
 # Kuro tipas
 freq_kuras <- freq_table_df(data, "Kuro tipas")
 
-freq_fiat
+freq_marke
 freq_kebulas
 freq_pavaros
 freq_kuras
@@ -306,12 +303,12 @@ mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black
           axis.ticks = element_line(color = "black", linewidth = 0.5))
 }
 
-# Fiat modeliai 
-p_mean_modeliai <- mean_point_plot(fiat_df, "Modelis",
+# Markės 
+p_mean_marke <- mean_point_plot(data, "Markė",
                                 color = "navy",
-                                title = "Vidutinės CO2 emisijos pagal Fiat modelius") +
+                                title = "Vidutinės CO2 emisijos pagal 10 populiariausių markių") +
   theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
-print(p_mean_modeliai)
+print(p_mean_marke)
 
 
 # Kėbulo tipas 
@@ -336,20 +333,322 @@ print(p_mean_kuras)
 ```
 
 
+
 ```{r}
-# Multikolinearumas
-model <- lm(`CO2 emisijos (g/km)` ~ 
-                 `Cilindrų skaičius` +
-                 `Kuro sąnaudos greitkelyje (l/100km)` +
-                 `Kuro sąnaudos mieste (l/100km)` +
-                 `Variklio tūris (l)` +
-                 `Vidutinės kuro sąnaudos (l/100km)`,
-                 data = data)
+# ================================
+# 1. PRADINIS MODELIS
+# ================================
+library(dplyr)
 
-
-vif_values <- vif(model)
-print(vif_values)
+# Sukuriame pradinį modelį su svarbiausiais kiekybiniais kintamaisiais
+model1 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Variklio tūris (l)` + 
+               `Cilindrų skaičius` + 
+               `Vidutinės kuro sąnaudos (l/100km)`, 
+             data = data)
 
 ```
+
+```{r}
+# ================================
+# 2. MULTIKOLINEARUMO PATIKRINIMAS
+# ================================
+library(car)
+vif(model1)
+
+```
+
+```{r}
+#Išemame cilindrų skaičiaus kintamąjį, kad VIF būtų mažesnis už 4, ir sukuriame naują modelį.
+model2 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Vidutinės kuro sąnaudos (l/100km)` + 
+               `Variklio tūris (l)`, 
+             data = data)
+vif(model2)
+
+```
+
+```{r}
+# ================================
+# 3. IŠSKIRČIŲ PATIKRINIMAS
+# ================================
+
+library(car)
+
+# 1. Išskirčių testas (Bonferroni p-value)
+outlierTest(model2)
+
+# 2. Vizualus įtakos ir svertinių taškų patikrinimas
+influenceIndexPlot(model2, 
+                   id=list(method="y", n=3), 
+                   vars=c("Cook", "Studentized", "hat"))
+
+
+# IŠSKIRČIŲ PAŠALINIMAS IR ŠVARAUS MODELIO KŪRIMAS
+
+# Surandam stebėjimus, kurie daro didelę įtaką ( Cook's distance > 4/n)
+n <- nrow(model2$model)
+influence <- cooks.distance(model2)
+influential_points <- which(influence > (4/n))
+
+# Patikrinam, kurie tai stebėjimai
+influential_points
+
+# Sukuriam naują duomenų rinkinį be išskirčių
+data_clean <- model2$model[-influential_points, ]
+
+# Sukuriam "švaresnį" modelį
+model_clean <- update(model2, data = data_clean)
+
+# ŠVARAUS MODELIO PATIKRINIMAS
+
+# Palyginimas su senu modeliu
+library(broom)
+
+# Ištraukiam pagrindinę statistiką iš abiejų modelių
+compare_models <- data.frame(
+  Model = c("Senas modelis", "Išvalytas modelis"),
+  R2 = c(summary(model2)$r.squared,
+         summary(model_clean)$r.squared),
+  Adj_R2 = c(summary(model2)$adj.r.squared,
+             summary(model_clean)$adj.r.squared),
+  AIC = c(AIC(model2),
+          AIC(model_clean)),
+  BIC = c(BIC(model2),
+          BIC(model_clean)),
+  F_stat = c(summary(model2)$fstatistic[1],
+             summary(model_clean)$fstatistic[1]),
+  p_value_F = c(pf(summary(model2)$fstatistic[1],
+                   summary(model2)$fstatistic[2],
+                   summary(model2)$fstatistic[3],
+                   lower.tail=FALSE),
+                pf(summary(model_clean)$fstatistic[1],
+                   summary(model_clean)$fstatistic[2],
+                   summary(model_clean)$fstatistic[3],
+                   lower.tail=FALSE))
+)
+
+# Atvaizduojam kaip gražią lentelę
+print(compare_models, row.names = FALSE)
+
+#Multikolinearumo patikrinimas modeliui be išskirčių:
+vif(model_clean)
+
+```
+1. StudRes (rstudent)
+
+Tai studentizuotos liekanos, kurios parodo, kiek kiekvienas taškas nutolęs nuo modelio prognozės.
+Taisyklė:
+Jei |rstudent| > 3, tai laikoma išskirtimi (outlier).
+
+2. Hat (leverage)
+
+Parodo, kiek stebėjimas turi įtakos modelio koeficientams.
+Taisyklė:
+Ribinė reikšmė ≈ 2(k+1)/n, kur:
+
+k – nepriklausomų kintamųjų skaičius,
+
+n – stebėjimų skaičius.
+
+Jei Hat > ribinės reikšmės → taškas turi didelę įtaką modelio formai.
+
+3. Cook’s Distance (CookD)
+
+Matuoja, kiek stebėjimo pašalinimas pakeistų visą modelį.
+Taisyklė:
+
+Jei CookD > 4/n, tai laikoma įtakingu tašku (influential point),
+n - stebėjimų sk.
+
+
+```{r}
+# ================================
+# 4. MODELIO PRIELAIDŲ TIKRINIMAS
+# ================================
+par(mfrow = c(2, 2))
+plot(model_clean)
+par(mfrow = c(1, 1))
+
+```
+1. Liekanos prieš prognozuotas reikšmes (Residuals vs Fitted)
+
+X ašis: Pritaikytos (numatytos) reikšmės – tai modelio prognozuotos CO₂ emisijos.
+Y ašis: Liekanos – skirtumas tarp stebėtų ir modelio prognozuotų reikšmių (t. y. klaidos).
+
+Ką rodo:
+Ar modelis atitinka tiesiškumo ir homoskedastiškumo prielaidą.
+Jei taškai atsitiktinai išsidėstę aplink horizontalią liniją (be aiškios formos), prielaida tenkinama.
+Jei matosi kreivės forma ar „piltuvėlis“, reiškia netolygus sklaidos plotis (heteroskedastiškumas).
+
+2. Q-Q grafikas
+
+X ašis: Teoriniai kvantiliai (jei liekanos būtų tobulai normaliai pasiskirsčiusios).
+Y ašis: Stebėtos liekanos (modelio likučiai).
+
+Ką rodo:
+Ar liekanos pasiskirsčiusios normaliai.
+Jei taškai išsidėstę palei įstrižainę – viskas gerai.
+Dideli nukrypimai nuo linijos rodo nnormalumą (pvz., išskirtis arba asimetrija).
+
+3. Skalės–vietos grafikas (Scale–Location)
+
+X ašis: Pritaikytos reikšmės (prognozuotos CO₂ emisijos).
+Y ašis: Šakninis standartizuotų liekanų dydis (√|stand. liekanos|).
+
+Ką rodo:
+Patikrina homoskedastiškumo prielaidą dar kartą.
+Jei raudona linija beveik horizontali → gerai.
+Jei ji kyla ar leidžiasi – liekanų sklaida kinta priklausomai nuo prognozuotų reikšmių, t. y. heteroskedastiškumas.
+
+4. Liekanų įtakos (Residuals vs Leverage) grafikas
+
+X ašis: Leverage (svertinis taškų atstumas nuo vidurkio – kiek įtakos turi taškas modelio koeficientams).
+Y ašis: Standartizuotos liekanos.
+
+Ką rodo:
+Įtakingus arba išsiskiriančius taškus.
+Apskritimai su didelėmis Cook's distance reikšmėmis rodo, kad tie taškai gali turėti didelę įtaką modeliui.
+Jei keli taškai yra toli nuo kitų, juos verta patikrinti.
+
+```{r}
+# 1. Liekanų normalumo testas
+library(nortest)
+ad_result <- ad.test(residuals(model_clean))
+print(ad_result)
+
+if(ad_result$p.value < 0.05) {
+  cat("Liekanos nenormaliosios (p =", ad_result$p.value, ").\n")
+} else {
+  cat("Liekanos normaliosios (p =", ad_result$p.value, ").\n")
+}
+
+# 2. Liekanų sklaidos diagrama
+plot(fitted(model_clean), residuals(model_clean),
+     pch = 16, col = "steelblue",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanų sklaidos diagrama")
+abline(h = 0, col = "red", lwd = 2)
+
+# 3. Homoskedastiškumo testas
+library(lmtest)
+bp_result <- bptest(model_clean)
+print(bp_result)
+
+if(bp_result$p.value < 0.05) {
+  cat("Heteroskedastiškumas nustatytas (p =", bp_result$p.value, ").\n")
+} else {
+  cat("Homoskedastiškumas (p =", bp_result$p.value, ").\n")
+}
+
+# 4. Korekcija heteroskedastiškumui su HC3
+library(sandwich)
+
+hc3_result <- coeftest(model_clean, vcov = vcovHC(model_clean, type = "HC3"))
+print(hc3_result)
+
+
+```
+
+```{r}
+# ================================
+# 5. ŽINGSNINĖ REGRESIJA
+# ================================
+
+# Atliekame žingsninę regresiją pagal AIC kriterijų
+library(MASS)
+model_step <- stepAIC(model_clean, direction = "both")
+
+summary(model_step)
+
+```
+
+```{r}
+# ================================
+# 6. HIPOTEZIŲ TIKRINIMAS
+# ================================
+# H0: β1 = β2 = ... = βm = 0
+anova(model_clean)
+
+# H_j: βj = 0 (t-test)
+summary(model_clean)
+
+#Parametrų pasikliovimo intervalai:
+confint(model_clean)
+
+```
+
+
+
+```{r}
+# ================================
+# 7. PROGNOZAVIMAS
+# ================================
+new_data <- data.frame(
+  `Vidutinės kuro sąnaudos (l/100km)` = c(7.5, 9.0),
+  `Variklio tūris (l)` = c(1.8, 2.0)
+)
+names(new_data) <- names(model_clean$model)[-1]  
+
+predictions <- predict(model_clean, newdata = new_data, interval = "prediction")
+print(predictions)
+
+
+```
+
+```{r}
+Rodikliai <- data_clean  
+
+Rodikliai <- within(Rodikliai, {
+  fitted.model_clean <- fitted(model_clean)
+  residuals.model_clean <- residuals(model_clean)
+  rstudent.model_clean <- rstudent(model_clean)
+  hatvalues.model_clean <- hatvalues(model_clean)
+  cooks.distance.model_clean <- cooks.distance(model_clean)
+  obsNumber <- 1:nrow(Rodikliai)
+})
+
+Rodikliai <- Rodikliai[, c("Variklio tūris (l)", 
+                            "Vidutinės kuro sąnaudos (l/100km)",
+                            "fitted.model_clean", 
+                            "residuals.model_clean", 
+                            "rstudent.model_clean", 
+                            "hatvalues.model_clean", 
+                            "cooks.distance.model_clean", 
+                            "obsNumber")]
+
+head(Rodikliai)
+
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(data_clean, aes(x = fitted(model_clean), y = `CO2 emisijos (g/km)`)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    x = "Prognozuotos reikšmės",
+    y = "Stebėtos reikšmės",
+    title = "Prognozuotų ir stebėtų CO2 emisijų sklaidos diagrama"
+  ) +
+  theme_minimal()
+
+```
+
+
+Kategoriniai kintamieji
+```{r}
+#Konvertuojame į faktorius:
+data$Kebulo_tipas <- as.factor(data$`Kėbulo tipas`)
+data$Pavaru_dezes_tipas <- as.factor(data$`Pavarų dėžės tipas`)
+data$Modelis <- as.factor(data$`Modelis`)
+
+str(data)
+```
+
+
 
 
