@@ -25,7 +25,9 @@ data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = 
 
 data <- data[, - (ncol(data) - 1)]
 
-data$logCO2 <- log(data$CO2.Emissions.g.km.)
+# Logaritmuojame visus skaitinius kintamuosius vietoje
+data[sapply(data, is.numeric)] <- lapply(data[sapply(data, is.numeric)], log)
+
 names(data) <- c("Markė",
                  "Modelis",
                  "Kėbulo tipas",
