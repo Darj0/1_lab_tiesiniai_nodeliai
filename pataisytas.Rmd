@@ -25,9 +25,10 @@ data <- read.csv("C:/Users/meliu/Desktop/TM/CO2_Emissions_Canada.csv", header = 
 
 data <- data[, - (ncol(data) - 1)]
 
-# Logaritmuojame visus skaitinius kintamuosius vietoje
-data[sapply(data, is.numeric)] <- lapply(data[sapply(data, is.numeric)], log)
+# Logaritmuojame visus skaitinius kintamuosius 
+#data[sapply(data, is.numeric)] <- lapply(data[sapply(data, is.numeric)], log)
 
+data$logCO2 <- log(data$CO2.Emissions.g.km.)
 names(data) <- c("Markė",
                  "Modelis",
                  "Kėbulo tipas",
@@ -435,9 +436,42 @@ data <- data %>%
 # 2. Prielaidų tikrinimas
 
 #2.1. Bendrieji diagnostikos grafikai:
-par(mfrow = c(2,2))
-plot(model1)   
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos vs prognozuotos reikšmės
+plot(fitted(model1), resid(model1),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos reikšmės")
+abline(h = 0, lty = 2, col = "red")
+
+# 2. QQ grafikas
+qqnorm(resid(model1), pch = 21, col = "deepskyblue3",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(resid(model1), col = "red", lwd = 2)
+
+# 3. Scale-Location (standartizuotos liekanos vs prognozuotos)
+plot(fitted(model1), sqrt(abs(rstandard(model1))),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "√|Standartizuotos liekanos|",
+     main = "Scale-Location grafikas")
+lines(lowess(fitted(model1), sqrt(abs(rstandard(model1)))),
+      col = "red", lwd = 2)
+
+# 4. Cook's distance
+plot(cooks.distance(model1), type = "h",
+     col = "deepskyblue3", lwd = 2,
+     xlab = "Stebėjimo numeris",
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1)), col = "red", lty = 2)
+
 par(mfrow = c(1,1))
+
 
 ```
 1. Residuals vs Fitted:
@@ -460,11 +494,42 @@ Tačiau šie taškai nekenkia modeliui drastiškai.
 
 ```{r}
 #2.2. Liekanos pagal stebėjimų indeksą
-par(mfrow = c(2,2))
-plot(model1$residuals, pch = 16, col = "red")
-plot(cooks.distance(model1), pch = 16, col = "blue")
-plot(rstandard(model1), pch = 16, col = "blue")
-plot(rstudent(model1), pch = 16, col = "blue")
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos
+plot(model1$residuals, 
+     pch = 21, col = "red",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Liekanos",
+     main = "Liekanos pagal stebėjimus")
+abline(h = 0, col = "black", lty = 2, lwd = 2)
+
+# 2. Cook's atstumas
+plot(cooks.distance(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1)), col = "black", lty = 2, lwd = 2)
+
+# 3. Standartizuotos liekanos
+plot(rstandard(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Standartizuotos liekanos",
+     main = "Standartizuotos liekanos")
+abline(h = c(-2,0,2), col = c("black","black","black"), lty = c(2,2,2))
+
+# 4. Studentizuotos liekanos
+plot(rstudent(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Studentizuotos liekanos",
+     main = "Studentizuotos liekanos")
+abline(h = c(-3,0,3), col = c("black","black","black"), lty = c(2,2,2))
+
+par(mfrow = c(1,1))
+
 
 ```
 Liekanos svyruoja aplink nulį be aiškios struktūros.
@@ -476,13 +541,29 @@ Modelio prielaida apie atsitiktines, nepriklausomas klaidas tenkinama.
 
 ```{r}
 #2.3 Liekanų normalumas
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
 
-par(mfrow=c(1,2))
-qqnorm(residuals(model1), main="QQ plot")
-qqline(residuals(model1))
-hist(residuals(model1), main="Liekanų pasiskirstymas", breaks=30)
+# QQ grafikas
+qqnorm(residuals(model1),
+       pch = 21, col = "deepskyblue3",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(residuals(model1), col = "red", lwd = 2)
+
+# Liekanų histograma
+hist(residuals(model1),
+     breaks = 30,
+     col = "deepskyblue3",
+     border = "black",
+     main = "Liekanų pasiskirstymas",
+     xlab = "Liekanos",
+     ylab = "Dažnis")
+
+# Normalumo testas
 library(nortest)
 ad.test(as.numeric(residuals(model1)))
+
 
 
 ```
@@ -493,12 +574,23 @@ Remiantis QQ diagrama ir liekanų histograma, galima teigti, kad liekanų pasisk
 library(lmtest)
 library(sandwich)
 
-bptest(model1)      # Breusch-Pagan
- 
-plot(model1$fitted, model1$resid); abline(h=0, lty=2)
+# Breusch-Pagan testas
+bptest(model1)
 
-#Korekcija:
+# liekanų vs prognozuotų reikšmių grafikas
+plot(fitted(model1), resid(model1),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos reikšmės")
 
+abline(h = 0, col = "black", lty = 2, lwd = 2)
+
+# Pridedame LOESS kreivę, kad matytume tendenciją
+lines(lowess(fitted(model1), resid(model1)),
+      col = "red", lwd = 2)
+
+# Koeficientų reikšmės su heteroskedastiškumo korekcija
 coeftest(model1, vcov = vcovHC(model1, type = "HC3"))
 
 ```
@@ -507,8 +599,10 @@ coeftest(model1, vcov = vcovHC(model1, type = "HC3"))
 #3. Išskirtys
 library(car)
 
-outlierTest(model1)          
-influenceIndexPlot(model1, id=list(method="y", n=3), vars=c("Cook", "Studentized", "hat"))  
+outlierTest(model1) 
+
+influenceIndexPlot(model1, id=list(method="y", n=3), vars=c("Cook", "Studentized", "hat")) 
+
 ```
 
 ```{r}
@@ -612,46 +706,210 @@ Multikolinearumo problema buvo sprendžiama dviem būdais: rankiniu būdu ir tai
 ```{r}
 #5. Prielaidų tikrinimas naujiems modeliams:
 
-#5.1. Bendrieji diagnostikos grafikai:
-par(mfrow = c(2,2))
-plot(model1a)   
+# 5.1. Bendrieji diagnostikos grafikai 
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos vs prognozuotos
+plot(fitted(model1a), resid(model1a),
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos")
+abline(h = 0, col = "red", lty = 2)
+
+# 2. QQ grafikas
+qqnorm(resid(model1a), pch = 20, col = "darkgreen", bg = "white",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(resid(model1a), col = "red", lwd = 2)
+
+# 3. Scale-Location
+plot(fitted(model1a), sqrt(abs(rstandard(model1a))),
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "√|Standartizuotos liekanos|",
+     main = "Scale-Location")
+lines(lowess(fitted(model1a), sqrt(abs(rstandard(model1a)))),
+      col = "red", lwd = 2)
+
+# 4. Cook's distance
+plot(cooks.distance(model1a), type = "h",
+     col = "darkgreen", lwd = 2,
+     xlab = "Stebėjimo numeris",
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1a)), col = "red", lty = 2)
+
 par(mfrow = c(1,1))
 
-par(mfrow = c(2,2))
-plot(model2a)   
+
+
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos vs prognozuotos
+plot(fitted(model2a), resid(model2a),
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos")
+abline(h = 0, col = "red", lty = 2)
+
+# 2. QQ grafikas
+qqnorm(resid(model2a), pch = 20, col = "darkviolet", bg = "white",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(resid(model2a), col = "red", lwd = 2)
+
+# 3. Scale-Location
+plot(fitted(model2a), sqrt(abs(rstandard(model2a))),
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "√|Standartizuotos liekanos|",
+     main = "Scale-Location")
+lines(lowess(fitted(model2a), sqrt(abs(rstandard(model2a)))),
+      col = "red", lwd = 2)
+
+# 4. Cook's distance
+plot(cooks.distance(model2a), type = "h",
+     col = "darkviolet", lwd = 2,
+     xlab = "Stebėjimo numeris",
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model2a)), col = "red", lty = 2)
+
 par(mfrow = c(1,1))
+
 
 ```
 ```{r}
 #5.2. Liekanos pagal stebėjimų indeksą
-par(mfrow = c(2,2))
-plot(model1a$residuals, pch = 16, col = "red")
-plot(cooks.distance(model1a), pch = 16, col = "blue")
-plot(rstandard(model1a), pch = 16, col = "blue")
-plot(rstudent(model1a), pch = 16, col = "blue")
 
-par(mfrow = c(2,2))
-plot(model2a$residuals, pch = 16, col = "red")
-plot(cooks.distance(model2a), pch = 16, col = "blue")
-plot(rstandard(model2a), pch = 16, col = "blue")
-plot(rstudent(model2a), pch = 16, col = "blue")
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos
+plot(model1a$residuals, 
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Liekanos",
+     main = "Liekanos pagal stebėjimus")
+abline(h = 0, col = "black", lty = 2)
+
+# 2. Cook'o atstumas
+plot(cooks.distance(model1a), 
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1a)), col = "black", lty = 2)
+
+# 3. Standartizuotos liekanos
+plot(rstandard(model1a), 
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Standartizuotos liekanos",
+     main = "Standartizuotos liekanos")
+abline(h = c(-2,0,2), col = c("black","black","black"), lty = 2)
+
+# 4. Studentizuotos liekanos
+plot(rstudent(model1a), 
+     pch = 20, col = "darkgreen", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Studentizuotos liekanos",
+     main = "Studentizuotos liekanos")
+abline(h = c(-3,0,3), col = c("black","black","black"), lty = 2)
+
+par(mfrow = c(1,1))
+
+
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos
+plot(model2a$residuals, 
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Liekanos",
+     main = "Liekanos pagal stebėjimus")
+abline(h = 0, col = "black", lty = 2)
+
+# 2. Cook'o atstumas
+plot(cooks.distance(model2a), 
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Cook'o atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model2a)), col = "black", lty = 2)
+
+# 3. Standartizuotos liekanos
+plot(rstandard(model2a), 
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Standartizuotos liekanos",
+     main = "Standartizuotos liekanos")
+abline(h = c(-2,0,2), col = c("black","black","black"), lty = 2)
+
+# 4. Studentizuotos liekanos
+plot(rstudent(model2a), 
+     pch = 20, col = "darkviolet", bg = "white",
+     xlab = "Stebėjimo numeris", 
+     ylab = "Studentizuotos liekanos",
+     main = "Studentizuotos liekanos")
+abline(h = c(-3,0,3), col = c("black","black","black"), lty = 2)
+
+par(mfrow = c(1,1))
+
 ```
 ```{r}
 #5.3 Liekanų normalumas
 
-par(mfrow=c(1,2))
-qqnorm(residuals(model1a), main="QQ plot")
-qqline(residuals(model1a))
-hist(residuals(model1a), main="Liekanų pasiskirstymas", breaks=30)
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
+
+# QQ grafikas
+qqnorm(residuals(model1a),
+       pch = 19, col = "darkgreen", bg = "white",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(residuals(model1a), col = "red", lwd = 2)
+
+# Histograma
+hist(residuals(model1a),
+     breaks = 30,
+     col = "darkgreen",
+     border = "black",
+     main = "Liekanų pasiskirstymas",
+     xlab = "Liekanos",
+     ylab = "Dažnis")
+
+# Normalumo testas
 library(nortest)
 ad.test(as.numeric(residuals(model1a)))
 
-par(mfrow=c(1,2))
-qqnorm(residuals(model2a), main="QQ plot")
-qqline(residuals(model2a))
-hist(residuals(model2a), main="Liekanų pasiskirstymas", breaks=30)
-library(nortest)
+
+
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
+
+# QQ grafikas
+qqnorm(residuals(model2a),
+       pch = 19, col = "darkviolet", bg = "white",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(residuals(model2a), col = "red", lwd = 2)
+
+# Histograma
+hist(residuals(model2a),
+     breaks = 30,
+     col = "darkviolet",
+     border = "black",
+     main = "Liekanų pasiskirstymas",
+     xlab = "Liekanos",
+     ylab = "Dažnis")
+
+# Normalumo testas
 ad.test(as.numeric(residuals(model2a)))
+
 
 ```
 
@@ -660,27 +918,34 @@ ad.test(as.numeric(residuals(model2a)))
 library(lmtest)
 library(sandwich)
 
+# Breusch-Pagan testai
 bptest(model1a)     
 bptest(model2a)  
 
 
 plot(fitted(model1a), resid(model1a),
+     pch = 19, col = "darkgreen", bg = "white",
      xlab = "Prognozuotos reikšmės",
      ylab = "Liekanos",
-     main = "Liekanos vs prognozuotos")
-abline(h = 0, lty = 2, col = "red")
+     main = "Liekanos ir prognozuotos reikšmės")
+abline(h = 0, lty = 2, col = "black", lwd = 2)
+lines(lowess(fitted(model1a), resid(model1a)),
+      col = "red", lwd = 2)
+
 
 plot(fitted(model2a), resid(model2a),
+     pch = 19, col = "darkviolet", bg = "white",
      xlab = "Prognozuotos reikšmės",
      ylab = "Liekanos",
-     main = "Liekanos vs prognozuotos")
-abline(h = 0, lty = 2, col = "red")
+     main = "Liekanos ir prognozuotos reikšmės")
+abline(h = 0, lty = 2, col = "black", lwd = 2)
+lines(lowess(fitted(model2a), resid(model2a)),
+      col = "red", lwd = 2)
 
-
-#Korekcija:
-
+# Koeficientų reikšmės su heteroskedastiškumo korekcija
 coeftest(model1a, vcov = vcovHC(model1a, type = "HC3"))
 coeftest(model2a, vcov = vcovHC(model2a, type = "HC3"))
+
 ```
 ```{r}
 #6. Išskirtys naujiems modeliams
@@ -718,17 +983,18 @@ vars2 <- data_clean[, c("CO2 emisijos (g/km)",
 
 pcor(vars2)
 ```
+
 ```{r}
 #7.3. Prognozuotos ir stebėtos reikšmės
 
 plot(fitted(model1a), data$`CO2 emisijos (g/km)`,
      xlab="Prognozuotos reikšmės", ylab="Stebėtos reikšmės",
-     main="Model1", pch=16, col="blue")
+     main="Pirmas modelis", pch=21, col="darkgreen")
 abline(0,1,col="red", lwd=2)
 
 plot(fitted(model2a), data_clean$`CO2 emisijos (g/km)`,
      xlab="Prognozuotos reikšmės", ylab="Stebėtos reikšmės",
-     main="Model2", pch=16, col="darkgreen")
+     main="Antras modelis", pch=21, col="purple")
 abline(0,1,col="red", lwd=2)
 
 
@@ -736,9 +1002,58 @@ abline(0,1,col="red", lwd=2)
 Išvados: renkamės Model2 (be išskirčių), nes R^2 didesnis bei iš grafikų matosi, kad prognozuotos reikšmės labiau atitinka stebėtas.
 
 ```{r}
-#8. Interpretacija: 
-#kuris svarbiausias kintamasis, prognozavimas
+#8. Interpretacija ir prognozė: 
+
+# Determinacijos koeficientas
+cat("R^2 reikšmė:", summary(model2a)$r.squared, "\n")
+cat("Adj. R^2 reikšmė:", summary(model2a)$adj.r.squared, "\n")
+
+# Reikšmingiausi kintamieji pagal p reikšmes
+coef_table <- summary(model2a)$coefficients
+sig_vars <- coef_table[coef_table[,4] < 0.05, ]
+sig_vars
+
+# Prognozė naujam automobiliui
+naujas <- data.frame(
+  check.names = FALSE,  
+  "Vidutinės kuro sąnaudos (l/100km)" = 8,
+  "Variklio tūris (l)" = 2.0,
+  "Pavarų dėžės tipas" = factor("Automatinė su rankiniu perjungimu", 
+                                 levels = levels(data_clean$`Pavarų dėžės tipas`)),
+  "Kuro tipas" = factor("Įprastas benzinas", 
+                        levels = levels(data_clean$`Kuro tipas`)),
+  "Kėbulo tipas" = factor("Lengvieji automobiliai", 
+                          levels = levels(data_clean$`Kėbulo tipas`)),
+  "Markė" = factor("TOYOTA", levels = levels(data_clean$Markė))
+)
+
+prognoze <- predict(model2a, newdata = naujas, interval = "prediction")
+prognoze
+
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
