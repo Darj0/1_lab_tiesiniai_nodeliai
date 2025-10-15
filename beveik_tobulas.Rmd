@@ -421,7 +421,6 @@ train_data$`Kėbulo tipas` <- as.factor(train_data$`Kėbulo tipas`)
 # Sukuriame pradinį modelį 
 model1 <- lm(`CO2 emisijos (g/km)` ~ 
                `Vidutinės kuro sąnaudos (l/100km)` + 
-               `Cilindrų skaičius` +
                `Kuro sąnaudos mieste (l/100km)` + 
                `Kuro sąnaudos greitkelyje (l/100km)` + 
                `Variklio tūris (l)` +
