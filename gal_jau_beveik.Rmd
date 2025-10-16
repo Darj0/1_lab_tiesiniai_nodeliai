@@ -1,6 +1,4 @@
 
-
-
 ---
 title: "tm1lab"
 author: "vilte"
@@ -21,7 +19,8 @@ When you click the **Knit** button a document will be generated that includes bo
 ```{r}
 library(dplyr)
 
-data <- read.csv("CO2 Emissions_Canada.csv", header = TRUE)
+#data <- read.csv("CO2 Emissions_Canada.csv", header = TRUE)
+data <- read.csv("CO2_Emissions_Canada.csv", header = TRUE)
 
 data <- data[, - (ncol(data) - 1)]
 
@@ -77,6 +76,7 @@ data <- data %>%
 
 ```{r}
 # Duomenų išvalymas:
+
 # Patikrinam, kiek yra NA reikšmių
 colSums(is.na(data))
 
@@ -465,7 +465,7 @@ lines(lowess(fitted(model1), sqrt(abs(rstandard(model1)))),
 # 4. Cook's distance
 plot(cooks.distance(model1), type = "h",
      col = "deepskyblue3", lwd = 2,
-     xlab = "Stebėjimo numeris",
+     xlab = "Stebėjimo indeksas",
      ylab = "Cook's atstumas",
      main = "Įtakingi taškai (Cook's distance)")
 abline(h = 4/length(resid(model1)), col = "red", lty = 2)
@@ -499,7 +499,7 @@ par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
 # 1. Liekanos
 plot(model1$residuals, 
      pch = 21, col = "red",
-     xlab = "Stebėjimo numeris", 
+     xlab = "Stebėjimo indeksas", 
      ylab = "Liekanos",
      main = "Liekanos pagal stebėjimus")
 abline(h = 0, col = "black", lty = 2, lwd = 2)
@@ -507,7 +507,7 @@ abline(h = 0, col = "black", lty = 2, lwd = 2)
 # 2. Cook's atstumas
 plot(cooks.distance(model1), 
      pch = 21, col = "deepskyblue3",
-     xlab = "Stebėjimo numeris", 
+     xlab = "Stebėjimo indeksas", 
      ylab = "Cook's atstumas",
      main = "Įtakingi taškai (Cook's distance)")
 abline(h = 4/length(resid(model1)), col = "black", lty = 2, lwd = 2)
@@ -515,7 +515,7 @@ abline(h = 4/length(resid(model1)), col = "black", lty = 2, lwd = 2)
 # 3. Standartizuotos liekanos
 plot(rstandard(model1), 
      pch = 21, col = "deepskyblue3",
-     xlab = "Stebėjimo numeris", 
+     xlab = "Stebėjimo indeksas", 
      ylab = "Standartizuotos liekanos",
      main = "Standartizuotos liekanos")
 abline(h = c(-2,0,2), col = c("black","black","black"), lty = c(2,2,2))
@@ -523,7 +523,7 @@ abline(h = c(-2,0,2), col = c("black","black","black"), lty = c(2,2,2))
 # 4. Studentizuotos liekanos
 plot(rstudent(model1), 
      pch = 21, col = "deepskyblue3",
-     xlab = "Stebėjimo numeris", 
+     xlab = "Stebėjimo indeksas", 
      ylab = "Studentizuotos liekanos",
      main = "Studentizuotos liekanos")
 abline(h = c(-3,0,3), col = c("black","black","black"), lty = c(2,2,2))
@@ -543,6 +543,8 @@ Modelio prielaida apie atsitiktines, nepriklausomas klaidas tenkinama.
 #2.3 Liekanų normalumas
 par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
 
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
+
 # QQ grafikas
 qqnorm(residuals(model1),
        pch = 21, col = "deepskyblue3",
@@ -551,19 +553,26 @@ qqnorm(residuals(model1),
        ylab = "Stebėtos liekanos")
 qqline(residuals(model1), col = "red", lwd = 2)
 
-# Liekanų histograma
-hist(residuals(model1),
+# Histograma 
+res <- residuals(model1)
+hist(res,
      breaks = 30,
      col = "deepskyblue3",
      border = "black",
      main = "Liekanų pasiskirstymas",
      xlab = "Liekanos",
-     ylab = "Dažnis")
+     ylab = "Tankis",
+     freq = FALSE)                  
+
+mu <- mean(res)
+s  <- sd(res)
+x <- seq(min(res), max(res), length.out = 200)
+lines(x, dnorm(x, mean = mu, sd = s), col = "red", lwd = 2) 
+
 
 # Normalumo testas
 library(nortest)
 ad.test(as.numeric(residuals(model1)))
-
 
 
 ```
@@ -684,7 +693,7 @@ vif(step_model2)
 
 ```
 
-Multikolinearumo problema buvo sprendžiama dviem būdais: rankiniu būdu ir taikant pažingsninę regresiją. Rankiniu būdu pašalinus kuro sąnaudas mieste, kuro sąnaudas greitkelyje ir cilindrų skaičių, VIF reikšmės sumažėjo iki < 4, todėl multikolinearumo problema buvo išspręsta. Tuo tarpu pažingsninė regresija, optimizuodama pagal AIC, paliko kintamuosius, kurių VIF išliko aukštas, todėl ši procedūra multikolinearumo problemos neišsprendė. Tolesnei analizei pasirinkti rankiniu būdu sudaryti modeliai, nes jie geriau atitiko prielaidas.
+
 
 ```{r}
 #5. Prielaidų tikrinimas patobulintam modeliui:
@@ -692,14 +701,14 @@ par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
 
 # 1. Liekanos vs prognozuotos
 plot(fitted(model2a), resid(model2a),
-     pch = 20, col = "darkviolet", bg = "white",
+     pch = 20, col = "mediumorchid3", bg = "white",
      xlab = "Prognozuotos reikšmės",
      ylab = "Liekanos",
      main = "Liekanos ir prognozuotos")
 abline(h = 0, col = "red", lty = 2)
 
 # 2. QQ grafikas
-qqnorm(resid(model2a), pch = 20, col = "darkviolet", bg = "white",
+qqnorm(resid(model2a), pch = 20, col = "mediumorchid3", bg = "white",
        main = "Liekanų QQ grafikas",
        xlab = "Teoriniai kvantiliai",
        ylab = "Stebėtos liekanos")
@@ -707,7 +716,7 @@ qqline(resid(model2a), col = "red", lwd = 2)
 
 # 3. Scale-Location
 plot(fitted(model2a), sqrt(abs(rstandard(model2a))),
-     pch = 20, col = "darkviolet", bg = "white",
+     pch = 20, col = "mediumorchid3", bg = "white",
      xlab = "Prognozuotos reikšmės",
      ylab = "√|Standartizuotos liekanos|",
      main = "Scale-Location")
@@ -716,8 +725,8 @@ lines(lowess(fitted(model2a), sqrt(abs(rstandard(model2a)))),
 
 # 4. Cook's distance
 plot(cooks.distance(model2a), type = "h",
-     col = "darkviolet", lwd = 2,
-     xlab = "Stebėjimo numeris",
+     col = "mediumorchid3", lwd = 2,
+     xlab = "Stebėjimo indeksas",
      ylab = "Cook's atstumas",
      main = "Įtakingi taškai (Cook's distance)")
 abline(h = 4/length(resid(model2a)), col = "red", lty = 2)
@@ -733,32 +742,32 @@ par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
 
 # 1. Liekanos
 plot(model2a$residuals, 
-     pch = 20, col = "darkviolet", bg = "white",
-     xlab = "Stebėjimo numeris", 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
      ylab = "Liekanos",
      main = "Liekanos pagal stebėjimus")
 abline(h = 0, col = "black", lty = 2)
 
 # 2. Cook'o atstumas
 plot(cooks.distance(model2a), 
-     pch = 20, col = "darkviolet", bg = "white",
-     xlab = "Stebėjimo numeris", 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
      ylab = "Cook'o atstumas",
      main = "Įtakingi taškai (Cook's distance)")
 abline(h = 4/length(resid(model2a)), col = "black", lty = 2)
 
 # 3. Standartizuotos liekanos
 plot(rstandard(model2a), 
-     pch = 20, col = "darkviolet", bg = "white",
-     xlab = "Stebėjimo numeris", 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
      ylab = "Standartizuotos liekanos",
      main = "Standartizuotos liekanos")
 abline(h = c(-2,0,2), col = c("black","black","black"), lty = 2)
 
 # 4. Studentizuotos liekanos
 plot(rstudent(model2a), 
-     pch = 20, col = "darkviolet", bg = "white",
-     xlab = "Stebėjimo numeris", 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
      ylab = "Studentizuotos liekanos",
      main = "Studentizuotos liekanos")
 abline(h = c(-3,0,3), col = c("black","black","black"), lty = 2)
@@ -775,8 +784,8 @@ res2 <- residuals(model2a)
 # QQ grafikas
 par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1))
 qqnorm(res2,
-       pch = 19, col = "darkviolet",
-       main = "Liekanų QQ grafikas (modelis 2a)",
+       pch = 19, col = "mediumorchid3",
+       main = "Liekanų QQ grafikas",
        xlab = "Teoriniai kvantiliai",
        ylab = "Stebėtos liekanos")
 qqline(res2, col = "red", lwd = 2)
@@ -784,11 +793,11 @@ qqline(res2, col = "red", lwd = 2)
 # Histograma su teorine normalumo kreive
 hist(res2,
      breaks = 30,
-     col = "darkviolet",
+     col = "mediumorchid3",
      border = "black",
-     main = "Liekanų pasiskirstymas (modelis 2a)",
+     main = "Liekanų pasiskirstymas",
      xlab = "Liekanos",
-     ylab = "Dažnis",
+     ylab = "Tankis",
      freq = FALSE)
 curve(dnorm(x, mean = mean(res2), sd = sd(res2)),
       col = "red", lwd = 2, add = TRUE)
@@ -813,7 +822,7 @@ library(sandwich)
 bptest(model2a)  
 
 plot(fitted(model2a), resid(model2a),
-     pch = 19, col = "darkviolet", bg = "white",
+     pch = 19, col = "mediumorchid3", bg = "white",
      xlab = "Prognozuotos reikšmės",
      ylab = "Liekanos",
      main = "Liekanos ir prognozuotos reikšmės")
@@ -822,10 +831,10 @@ lines(lowess(fitted(model2a), resid(model2a)),
       col = "red", lwd = 2)
 
 # Koeficientų reikšmės su heteroskedastiškumo korekcija
-coeftest(model1a, vcov = vcovHC(model1a, type = "HC3"))
 coeftest(model2a, vcov = vcovHC(model2a, type = "HC3"))
 
 ```
+
 ```{r}
 #6. Išskirtys patobulintam modeliui
 
@@ -833,94 +842,159 @@ outlierTest(model2a)
 influenceIndexPlot(model2a, id=list(method="y", n=3), vars=c("Cook", "Studentized", "hat")) 
 
 ```
+
 ```{r}
 #7. Modelio tobulinimas
 
 #7.1. Reikšmingų kovariančių atranka
 
-summary(model2a)
+summary(model2a) 
+#paliekam visas
 ```
 
 ```{r}
-#7.2. Dalinė koreliacija
+#7.2. Sąveikų įtraukimas
 
-#library(ppcor)
+# Kuriame modelį su sąveikomis tarp prasmingų kintamųjų
 
-#vars1 <- data[, c("CO2 emisijos (g/km)",
-#                       "Vidutinės kuro sąnaudos (l/100km)")]
+model_final <- lm(`CO2 emisijos (g/km)` ~ 
+                  `Vidutinės kuro sąnaudos (l/100km)` * `Kuro tipas` +
+                  `Vidutinės kuro sąnaudos (l/100km)` * `Kėbulo tipas` +
+                  `Kuro tipas` * `Pavarų dėžės tipas` +
+                  `Markė`,
+                data = data_clean)
 
-#pcor(vars1)
+summary(model_final)
 
-#vars2 <- data_clean[, c("CO2 emisijos (g/km)",
-#                       "Vidutinės kuro sąnaudos (l/100km)")]
-
-#pcor(vars2)
 ```
+* Vidutinės kuro sąnaudos × Kuro tipas: Skirtingi kuro tipai (benzinas, dyzelis ir t.t.) turi skirtingą kuro sąnaudų poveikį CO₂ emisijoms. Pvz., 1 l/100 km benzino ≠ 1 l/100 km dyzelio emisijose.
+
+* Vidutinės kuro sąnaudos × Kėbulo tipas: Skirtingo tipo automobiliai (sedanas, SUV, hečbekas) gali turėti kitokį aerodinaminį efektyvumą, todėl tas pats sąnaudų lygis skirtingai veikia CO₂.
+
+* Kuro tipas × Pavarų dėžės tipas: Automatinės pavaros gali būti mažiau efektyvios benzinui nei dyzeliui.
+
+Išvados:Reikšmingos sąveikos:
+
+Vidutinės kuro sąnaudos × Kuro tipas
+Vidutinės kuro sąnaudos × Kėbulo tipas
+Kuro tipas × Pavarų dėžės tipas (ypač su „Įprastas benzinas“).
+
+Todėl paliekam visas sąveikas.
 
 ```{r}
-#7.3. Prognozuotos ir stebėtos reikšmės
+#7.3. Modelių palyginimas (ar sąveikos pagerino modelį)
 
-
-plot(fitted(model2a), data_clean$`CO2 emisijos (g/km)`,
-     xlab="Prognozuotos reikšmės", ylab="Stebėtos reikšmės",
-     main="Antras modelis", pch=21, col="purple")
-abline(0,1,col="red", lwd=2)
-
+anova(model2a, model_final)
 
 ```
-Išvados: renkamės Model2 (be išskirčių), nes R^2 didesnis bei iš grafikų matosi, kad prognozuotos reikšmės labiau atitinka stebėtas.
+Kadangi:
 
+F = 4.79, p = 4.5 × 10⁻⁹ < 0.001
 
-```{r}
+→ Galime drąsiai teigti, kad:
 
-# Prognozės train rinkiniui
-train_pred <- predict(model1a, newdata = train_data, interval = "prediction")
-
-# Palyginame prognozuotas ir tikras reikšmes
-head(cbind(Tikros = train_data$`CO2 emisijos (g/km)`, Prognozuotos = train_pred[, "fit"]))
-
-# Galima vizualizuoti
-plot(train_pred[, "fit"], train_data$`CO2 emisijos (g/km)`,
-     xlab = "Prognozuotos reikšmės", ylab = "Tikros reikšmės",
-     main = "Prognozės train rinkiniui", pch = 21, col = "blue")
-abline(0,1, col="red", lwd=2)
-
-
-
-
-```
+modelis su sąveikomis statistiškai reikšmingai pagerina paaiškinimą lyginant su modeliu be sąveikų.
 
 
 ```{r}
-#8. Interpretacija ir prognozė: 
+# 8.1. Prognozės test rinkiniui
 
-# Determinacijos koeficientas
-cat("R^2 reikšmė:", summary(model2a)$r.squared, "\n")
-cat("Adj. R^2 reikšmė:", summary(model2a)$adj.r.squared, "\n")
+# Pašaliname konkrečias markes GMC ir SCION
+test_data_clean <- subset(test_data,
+                          !(`Markė` %in% c("GMC", "SCION")))
 
-# Reikšmingiausi kintamieji pagal p reikšmes
-coef_table <- summary(model2a)$coefficients
-sig_vars <- coef_table[coef_table[,4] < 0.05, ]
-sig_vars
+# Užtikriname, kad faktoriai turi tuos pačius lygius kaip treniravimo duomenyse
+test_data_clean$`Markė` <- factor(test_data_clean$`Markė`, levels = levels(data_clean$`Markė`))
+test_data_clean$`Kuro tipas` <- factor(test_data_clean$`Kuro tipas`, levels = levels(data_clean$`Kuro tipas`))
+test_data_clean$`Pavarų dėžės tipas` <- factor(test_data_clean$`Pavarų dėžės tipas`, levels = levels(data_clean$`Pavarų dėžės tipas`))
+test_data_clean$`Kėbulo tipas` <- factor(test_data_clean$`Kėbulo tipas`, levels = levels(data_clean$`Kėbulo tipas`))
 
-# Prognozė naujam automobiliui
-naujas <- data.frame(
-  check.names = FALSE,  
-  "Vidutinės kuro sąnaudos (l/100km)" = 8,
-  "Variklio tūris (l)" = 2.0,
-  "Pavarų dėžės tipas" = factor("Automatinė su rankiniu perjungimu", 
-                                 levels = levels(data_clean$`Pavarų dėžės tipas`)),
-  "Kuro tipas" = factor("Įprastas benzinas", 
-                        levels = levels(data_clean$`Kuro tipas`)),
-  "Kėbulo tipas" = factor("Lengvieji automobiliai", 
-                          levels = levels(data_clean$`Kėbulo tipas`)),
-  "Markė" = factor("TOYOTA", levels = levels(data_clean$Markė))
+# Prognozės
+test_pred <- predict(model_final, newdata = test_data_clean)
+
+# Rezultatų lentelė
+results <- data.frame(
+  Tikros = test_data_clean$`CO2 emisijos (g/km)`,
+  Prognozuotos = test_pred
 )
 
-prognoze <- predict(model2a, newdata = naujas, interval = "prediction")
+head(results)
+
+
+```
+```{r}
+# 8.2. Modelio tikslumo įvertinimas (test rinkinyje)
+
+# Apskaičiuojame paklaidos rodiklius
+library(Metrics)
+
+rmse_val <- rmse(results$Tikros, results$Prognozuotos)
+mae_val  <- mae(results$Tikros, results$Prognozuotos)
+r2_val   <- cor(results$Tikros, results$Prognozuotos)^2
+
+cat("RMSE:", rmse_val, "\n")
+cat("MAE:", mae_val, "\n")
+cat("R² (test duomenims):", r2_val, "\n")
+
+```
+RMSE (Root Mean Squared Error) – kvadratinė vidutinė paklaida
+RMSE = ~2.58 g/km
+Tai vidutinė prognozės klaida kvadratinės formos (didesnės klaidos labiau sveriamos).
+Kuo mažesnė reikšmė, tuo geresnis modelis.
+Vertinant CO₂ emisijas (~100–200 g/km, priklausomai nuo duomenų), klaida 2.58 yra labai maža → modelis tiksliai prognozuoja.
+
+MAE (Mean Absolute Error) – vidutinė absoliuti paklaida
+MAE = ~1.66 g/km
+Tai vidutinė absoliuti prognozės klaida, lengviau interpretuojama nei RMSE.
+Vėlgi, palyginus su CO₂ skalėmis, klaida labai maža, t.y. prognozės labai arti faktinių reikšmių.
+
+R² (Koeficientas determinacijos)
+R² = 0.9869 (~98.7%)
+Parodo, kiek procentų duomenų dispersijos modelis paaiškina.
+0.9869 reiškia, kad modelis paaiškina praktiškai visą kintamumą CO₂ emisijose treniravimo duomenų atžvilgiu.
+Tai labai aukštas rodiklis, t. y. modelis yra labai geras.
+
+```{r}
+#8.3. Grafikas – stebėtos vs prognozuotos reikšmės
+
+plot(results$Prognozuotos, results$Tikros,
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Stebėtos reikšmės",
+     main = "Prognozuotos ir stebėtos reikšmės",
+     pch = 21, bg = "lightblue", col = "darkblue")
+abline(0, 1, col = "red", lwd = 2)
+
+```
+
+```{r}
+#9. Prognozė naujam automobiliui
+
+naujas <- data.frame(
+  check.names = FALSE,  
+  "Vidutinės kuro sąnaudos (l/100km)" = 8.5,
+  "Pavarų dėžės tipas" = factor("Automatinė su rankiniu perjungimu", 
+                                 levels = levels(train_data$`Pavarų dėžės tipas`)),
+  "Kuro tipas" = factor("Įprastas benzinas", 
+                        levels = levels(train_data$`Kuro tipas`)),
+  "Kėbulo tipas" = factor("Lengvieji automobiliai", 
+                          levels = levels(train_data$`Kėbulo tipas`)),
+  "Markė" = factor("TOYOTA", levels = levels(train_data$Markė))
+)
+
+prognoze <- predict(model_final, newdata = naujas, interval = "prediction")
 prognoze
 
 ```
+
+
+
+
+
+
+
+
+
+
 
 
 
