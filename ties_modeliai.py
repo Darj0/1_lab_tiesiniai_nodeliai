@@ -1,3 +1,4 @@
+
 import warnings
 import numpy as np
 import pandas as pd
@@ -132,7 +133,7 @@ print(outlier_summary)
 
 print(f"Pradinė imtis: {len(data)} eilučių")
 
-outlier_list = [is_outlier(data[col], coef=1.5) for col in numeric_vars if col in data.columns]
+outlier_list = [is_outlier(data[col], coef=3.0) for col in numeric_vars if col in data.columns]
 if outlier_list:
     rows_to_remove = pd.concat(outlier_list, axis=1).any(axis=1)
 else:
