@@ -687,7 +687,7 @@ GVIF^(1/(2*Df))
 # 4.2. Pažingsninis metodas:
 library(MASS)
 
-step_model2 <- stepAIC(model2a, direction = c("both"))
+step_model2 <- stepAIC(model2, direction = c("both"))
 
 vif(step_model2)
 
@@ -985,6 +985,7 @@ prognoze <- predict(model_final, newdata = naujas, interval = "prediction")
 prognoze
 
 ```
+
 
 
 
