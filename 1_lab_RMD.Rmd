@@ -1,0 +1,1048 @@
+
+
+
+---
+title: "tm1lab"
+author: "vilte"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(dplyr)
+
+#data <- read.csv("CO2 Emissions_Canada.csv", header = TRUE)
+data <- read.csv("CO2_Emissions_Canada.csv", header = TRUE)
+
+data <- data[, - (ncol(data) - 1)]
+
+names(data) <- c("Markė",
+                 "Modelis",
+                 "Kėbulo tipas",
+                 "Variklio tūris (l)",
+                 "Cilindrų skaičius",
+                 "Pavarų dėžės tipas",
+                 "Kuro tipas",
+                 "Kuro sąnaudos mieste (l/100km)",
+                 "Kuro sąnaudos greitkelyje (l/100km)",
+                 "Vidutinės kuro sąnaudos (l/100km)",
+                 "CO2 emisijos (g/km)")
+
+
+data$"Kėbulo tipas" <- with(data,
+  ifelse(`Kėbulo tipas` %in% c("SUV - SMALL", "SUV - STANDARD"), "SUV",
+  ifelse(`Kėbulo tipas` %in% c("MID-SIZE", "COMPACT", "SUBCOMPACT", 
+                               "MINICOMPACT", "FULL-SIZE", "TWO-SEATER"),
+         "Lengvieji automobiliai",
+  ifelse(`Kėbulo tipas` %in% c("STATION WAGON - SMALL", "STATION WAGON - MID-SIZE"),
+         "Universalai",
+  ifelse(`Kėbulo tipas` %in% c("PICKUP TRUCK - SMALL", "PICKUP TRUCK - STANDARD"),
+         "Pikapai",
+  ifelse(`Kėbulo tipas` %in% c("MINIVAN", "VAN - PASSENGER", "VAN - CARGO"),
+         "Vienatūriai",
+  ifelse(`Kėbulo tipas` == "SPECIAL PURPOSE VEHICLE", 
+         "Specialieji", NA)))))))
+
+
+data$"Pavarų dėžės tipas" <- ifelse(grepl("^AM", data$`Pavarų dėžės tipas`), "Automatizuota mechaninė",
+                             ifelse(grepl("^AS", data$`Pavarų dėžės tipas`), "Automatinė su rankiniu perjungimu",
+                             ifelse(grepl("^AV", data$`Pavarų dėžės tipas`), "Bepakopė (CVT)",
+                             ifelse(grepl("^A",  data$`Pavarų dėžės tipas`), "Automatinė",
+                             ifelse(grepl("^M",  data$`Pavarų dėžės tipas`), "Mechaninė", NA)))))
+
+
+data$"Kuro tipas" <- ifelse(data$`Kuro tipas` == "X", "Įprastas benzinas",
+                     ifelse(data$`Kuro tipas` == "Z", "Aukštos kokybės benzinas",
+                     ifelse(data$`Kuro tipas` == "D", "Dyzelinas",
+                     ifelse(data$`Kuro tipas` == "E", "Etanolis (E85)",
+                     ifelse(data$`Kuro tipas` == "N", "Gamtinės dujos", NA)))))
+
+
+data <- data %>%
+  filter(`Variklio tūris (l)` == 2.0)%>%
+  droplevels()
+
+
+```
+
+```{r}
+# Duomenų paruošimas:
+
+# Patikrinam, kiek yra NA reikšmių
+colSums(is.na(data))
+
+# Funkcija, kuri patikrina išskirtis pagal IQR
+check_outliers <- function(x, coef = 1.5) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower <- Q1 - coef * IQR
+  upper <- Q3 + coef * IQR
+  sum(x < lower | x > upper, na.rm = TRUE) 
+}
+
+# Funkcija, kuri grąžina loginį vektorių (TRUE = ekstremali reikšmė)
+is_extreme <- function(x, coef = 3) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower <- Q1 - coef * IQR
+  upper <- Q3 + coef * IQR
+  (x < lower) | (x > upper)
+}
+
+# Pasirenkam kiekybinius kintamuosius
+numeric_vars <- c("Vidutinės kuro sąnaudos (l/100km)",
+                  "Kuro sąnaudos greitkelyje (l/100km)",
+                  "Kuro sąnaudos mieste (l/100km)",
+                  "Cilindrų skaičius",
+                  "CO2 emisijos (g/km)")
+
+# Lentelė su išskirčių skaičiumi
+outlier_summary <- data.frame(
+  Outliers_1.5IQR = sapply(data[numeric_vars], check_outliers, coef = 1.5),
+  Outliers_3IQR   = sapply(data[numeric_vars], check_outliers, coef = 3)
+)
+
+print(outlier_summary)
+
+
+```
+
+
+```{r}
+# Histograma su CO2 emisijomis
+hist(data$`CO2 emisijos (g/km)`,
+     breaks = 40,
+     probability = TRUE,
+     main = "Automobilių CO2 emisijų pasiskirstymo histograma",
+     xlab = "CO2 emisijos (g/km)",
+     ylab = "Tankis",
+     col = "lightblue",
+     border = "black")
+
+# Normalioji kreivė
+x <- seq(min(data$`CO2 emisijos (g/km)`, na.rm=TRUE), max(data$`CO2 emisijos (g/km)`, na.rm=TRUE), length=100)
+y <- dnorm(x, 
+           mean=mean(data$`CO2 emisijos (g/km)`, na.rm=TRUE), 
+           sd=sd(data$`CO2 emisijos (g/km)`, na.rm=TRUE))
+lines(x, y, col="red", lwd=2)
+
+legend(x = 5.75, y = 1.93,
+       legend = c("CO2 emisijų pasiskirstymas", "Normalumo kreivė"),
+       pch    = c(22, NA),              
+       pt.cex = c(2, NA),               
+       col    = c("black", "red"),      
+       pt.bg  = c("lightblue", NA),     
+       pt.lwd = c(1.5, NA),             
+       lwd    = c(NA, 2),
+       bty    = "n")
+
+#QQ grafikas
+library(car)
+
+qqPlot(data$`CO2 emisijos (g/km)`, 
+       dist = "norm",
+       main = "QQ CO2 emisijų grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos CO2 emisijos (g/km)")
+
+```
+```{r}
+# Statistinis Andersono-Darlingo testas
+library(nortest)
+ad.test(data$`CO2 emisijos (g/km)`)
+```
+
+```{r}
+library(corrplot)
+library(GGally)
+library(ggplot2)
+
+# 1. Paruošiami kiekybiniai kintamieji
+numeric_vars <- data[, c("Kuro sąnaudos mieste (l/100km)",
+                          "Kuro sąnaudos greitkelyje (l/100km)",
+                          "Vidutinės kuro sąnaudos (l/100km)",
+                          "CO2 emisijos (g/km)")]
+
+colnames(numeric_vars) <- c("Kuro sąnaudos\nmieste (l/100km)",
+                            "Kuro sąnaudos\ngreitkelyje (l/100km)",
+                            "Vidutinės kuro\nsąnaudos (l/100km)",
+                            "CO2 emisijos (g/km)")
+
+# 2. Koreliacijų matrica
+cor_matrix <- cor(numeric_vars, use = "complete.obs")
+
+# 3. Heatmap su numbers metodu
+corrplot(cor_matrix,
+         method = "number",  
+         type = "upper",      
+         tl.col = "black",    
+         tl.srt = 90,         
+         number.cex = 0.8,    
+         addCoef.col = "black") 
+
+# 4. Sklaidos diagramų matrica
+upper_fun <- function(data, mapping, ...) {
+  ggplot(data, mapping) +
+    geom_point(alpha = 0.5, color = "deepskyblue3") +         
+    geom_smooth(method = "lm", se = FALSE, color = "red", lwd = 1) + 
+    theme_minimal()
+}
+
+diag_fun <- function(data, mapping, ...) {
+  var <- as_label(mapping$x)
+  ggplot() +
+    annotate("text", x = 0.5, y = 0.5, label = var, size = 4, fontface = "bold") +
+    theme_void()
+}
+
+p <- suppressMessages(
+  suppressWarnings(
+    ggpairs(numeric_vars,
+            upper = list(continuous = upper_fun),   
+            lower = list(continuous = "blank"),     
+            diag  = list(continuous = "blank"),    
+            progress = FALSE) +
+      ggtitle("Sklaidos diagramų matrica") +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  )
+)
+
+# Išsaugom kaip PNG 
+ggsave(filename = "scatter.png",
+plot = p, width = 12, height = 12, dpi = 300)
+
+
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(colorspace)
+
+dep_var <- "CO2 emisijos (g/km)"
+
+# ===== Funkcija kategoriniams kintamiesiems =====
+plot_box_rainbow <- function(data, var_name, title) {
+  n_levels <- length(unique(data[[var_name]]))
+  
+  ggplot(data, aes(x = .data[[var_name]], 
+                   y = `CO2 emisijos (g/km)`, 
+                   fill = .data[[var_name]])) +
+    geom_boxplot(color = "black") +
+    scale_fill_manual(values = rainbow_hcl(n_levels, c = 60, l = 80)) +
+    theme_minimal() +
+    labs(title = title,
+         x = var_name,
+         y = "CO2 emisijos (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
+          legend.position = "none",
+          axis.line.x = element_line(color = "black", linewidth = 0.5),
+          axis.line.y = element_line(color = "black", linewidth = 0.5),
+          axis.ticks = element_line(color = "black", linewidth = 0.5)
+          )
+}
+
+#  Markės
+p2 <- plot_box_rainbow(data, "Markė", "CO2 emisijos pagal markes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p2)
+
+#  Kėbulo tipas
+p3 <- plot_box_rainbow(data, "Kėbulo tipas", "CO2 emisijos pagal kėbulo tipą")
+print(p3)
+
+#  Pavarų dėžės tipas
+p4 <- plot_box_rainbow(data, "Pavarų dėžės tipas", "CO2 emisijos pagal pavarų dėžės tipą")
+print(p4)
+
+#  Kuro tipas
+data <- data %>%
+  filter(`Kuro tipas` != "Gamtinės dujos")
+
+p5 <- plot_box_rainbow(data, "Kuro tipas", "CO2 emisijos pagal kuro tipą") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  
+print(p5)
+
+
+```
+
+
+```{r}
+library(dplyr)
+
+# Funkcija dažnių lentelei 
+freq_table_df <- function(data, var_name) {
+  data %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(Dažnis = n(), .groups = "drop") %>%
+    arrange(desc(Dažnis))
+}
+
+# Markės
+freq_marke <- freq_table_df(data, "Markė")
+
+# Kėbulo tipas
+freq_kebulas <- freq_table_df(data, "Kėbulo tipas")
+
+# Pavarų dėžės tipas
+freq_pavaros <- freq_table_df(data, "Pavarų dėžės tipas")
+
+# Kuro tipas
+freq_kuras <- freq_table_df(data, "Kuro tipas")
+
+freq_marke
+freq_kebulas
+freq_pavaros
+freq_kuras
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Funkcija vidurkio su dispersija grafiko sudarymui
+mean_point_plot <- function(data, var_name, filter_values = NULL, color = "black", title = NULL) {
+  df <- data
+  if (!is.null(filter_values)) {
+    df <- df %>% filter(.data[[var_name]] %in% filter_values)
+  }
+  
+  summary_df <- df %>%
+    group_by(.data[[var_name]]) %>%
+    summarise(
+      mean_CO2 = mean(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      sd_CO2   = sd(`CO2 emisijos (g/km)`, na.rm = TRUE),
+      n        = n(),
+      .groups  = "drop"
+    ) %>%
+    mutate(se = sd_CO2 / sqrt(n))
+  
+  ggplot(summary_df, aes(x = .data[[var_name]], y = mean_CO2)) +
+    geom_point(size = 3, color = color) +
+    geom_errorbar(aes(ymin = mean_CO2 - sd_CO2, ymax = mean_CO2 + sd_CO2),
+                  width = 0.2, color = color) +
+    theme_minimal() +
+    labs(title = title,
+         x = var_name,
+         y = "CO2 emisijos (g/km)") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+          axis.text.x = element_text(angle = 0, hjust = 0.5),
+          axis.line.x = element_line(color = "black", linewidth = 0.5),
+          axis.line.y = element_line(color = "black", linewidth = 0.5),
+          axis.ticks = element_line(color = "black", linewidth = 0.5))
+}
+
+# Markės 
+p_mean_marke <- mean_point_plot(data, "Markė",
+                                color = "navy",
+                                title = "Vidutinės CO2 emisijos pagal markes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5))  
+print(p_mean_marke)
+
+
+# Kėbulo tipas 
+p_mean_kebulas <- mean_point_plot(data, "Kėbulo tipas",
+                                  color = "black",
+                                  title = "Vidutinės CO2 emisijos pagal kėbulo tipą")
+print(p_mean_kebulas)
+
+# Pavarų dėžės tipas 
+p_mean_pavare <- mean_point_plot(data, "Pavarų dėžės tipas",
+                                 color = "darkred",
+                                 title = "Vidutinės CO2 emisijos pagal pavarų dėžės tipą")
+print(p_mean_pavare)
+
+# Kuro tipas 
+p_mean_kuras <- mean_point_plot(data, "Kuro tipas",
+                                color = "darkgreen",
+                                title = "Vidutinės CO2 emisijos pagal kuro tipą") 
+print(p_mean_kuras)
+
+
+```
+
+```{r}
+set.seed(123) 
+data <- data[sample(nrow(data)), ]
+
+train_index <- sample(1:nrow(data), 0.8 * nrow(data))
+
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+cat("Eilučių skaičius pradiniuose duomenyse:", nrow(data), "\n")
+cat("Eilučių skaičius treniravimo aibėje:", nrow(train_data), "\n")
+cat("Eilučių skaičius testavimo aibėje:", nrow(test_data), "\n")
+
+row.names(train_data) <- NULL
+
+```
+
+
+
+```{r}
+# 1. Pradinis modelis ir liekanų gavimas
+# Pakeičiame kategorinius kintamuosius į faktorius
+train_data$`Pavarų dėžės tipas` <- as.factor(train_data$`Pavarų dėžės tipas`)
+train_data$`Kuro tipas`         <- as.factor(train_data$`Kuro tipas`)
+train_data$`Markė`              <- as.factor(train_data$`Markė`)
+train_data$`Kėbulo tipas`       <- as.factor(train_data$`Kėbulo tipas`)
+
+
+# Sukuriame pradinį modelį 
+model1 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Vidutinės kuro sąnaudos (l/100km)` + 
+               `Kuro sąnaudos mieste (l/100km)` + 
+               `Kuro sąnaudos greitkelyje (l/100km)` + 
+               `Pavarų dėžės tipas` +
+               `Kuro tipas` +
+               `Markė`+
+               `Kėbulo tipas`,
+             data = train_data)
+
+# Išsaugome liekanas ir diagnostinius rodiklius
+train_data <- train_data %>%
+  mutate(fitted = fitted(model1),
+         resid = residuals(model1),
+         rstd = rstandard(model1),
+         rstud = rstudent(model1),
+         hat = hatvalues(model1),
+         cooks = cooks.distance(model1),
+         obs = row_number())
+
+```
+
+```{r}
+# 2. Prielaidų tikrinimas
+dev.new()
+
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos vs prognozuotos reikšmės
+plot(fitted(model1), resid(model1),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos reikšmės")
+abline(h = 0, lty = 2, col = "red")
+
+# 2. QQ grafikas
+qqnorm(resid(model1), pch = 21, col = "deepskyblue3",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(resid(model1), col = "red", lwd = 2)
+
+# 3. Scale-Location (standartizuotos liekanos vs prognozuotos)
+plot(fitted(model1), sqrt(abs(rstandard(model1))),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Standartizuotos liekanos",
+     main = "Scale-Location grafikas")
+lines(lowess(fitted(model1), sqrt(abs(rstandard(model1)))),
+      col = "red", lwd = 2)
+
+# 4. Cook's distance
+plot(cooks.distance(model1), type = "h",
+     col = "deepskyblue3", lwd = 2,
+     xlab = "Stebėjimo indeksas",
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1)), col = "red", lty = 2)
+
+par(mfrow = c(1,1))
+
+
+```
+1. Residuals vs Fitted:
+Liekanų sklaida rodo, kad modelio prielaida apie tiesinį ryšį daugmaž tenkinama, tačiau yra šiek tiek heteroskedastiškumo — didesni CO₂ rodikliai turi kiek didesnį liekanų išsibarstymą.
+Tai gali būti dėl to, kad skirtingos markės ar kuro rūšys natūraliai turi skirtingus sklaidos lygius (pvz., sportiniai modeliai turi labiau kintamus CO₂ rodiklius).
+
+2. QQ grafikas:
+Liekanos daugmaž normalios, bet yra šiek tiek „uodegos“ dešinėje — t. y. kai kurie automobiliai turi labiau nei tikėtasi teigiamas liekanas (prognozuotas CO₂ < faktinis).
+Tai natūralu, nes tam tikros markės (pvz., didesni, galingesni varikliai) gali būti sunkiau tiksliai aprašomos tiesiniu modeliu.
+
+3. Scale-Location grafikas:
+Kreivė nėra visiškai horizontali — matosi, kad didėjant prognozuotai CO₂ emisijai, liekanų išsibarstymas šiek tiek didėja.
+Tai reiškia, kad heteroskedastiškumas šiek tiek padidėjęs. Kitaip tariant, modelis šiek tiek mažiau tiksliai prognozuoja didelius CO₂ rodiklius.
+Tačiau bendrai tendencija nėra labai stipri — modelis vis dar pakankamai stabilus.
+
+4.Cook's distance:
+Modelyje yra keletas įtakingų stebėjimų — greičiausiai tai automobiliai su ypač didelėmis emisijomis (pvz., sportiniai arba hibridiniai su dideliu varikliu).
+Juos verta patikrinti atskirai — ar jie realūs, ar galbūt klaidingi duomenys.
+Tačiau šie taškai nekenkia modeliui drastiškai.
+
+```{r}
+#2.2. Liekanos pagal stebėjimų indeksą
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos
+plot(model1$residuals, 
+     pch = 21, col = "red",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Liekanos",
+     main = "Liekanos pagal stebėjimus")
+abline(h = 0, col = "black", lty = 2, lwd = 2)
+
+# 2. Cook's atstumas
+plot(cooks.distance(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model1)), col = "black", lty = 2, lwd = 2)
+
+# 3. Standartizuotos liekanos
+plot(rstandard(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Standartizuotos liekanos",
+     main = "Standartizuotos liekanos")
+abline(h = c(-2,0,2), col = c("black","black","black"), lty = c(2,2,2))
+
+# 4. Studentizuotos liekanos
+plot(rstudent(model1), 
+     pch = 21, col = "deepskyblue3",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Studentizuotos liekanos",
+     main = "Studentizuotos liekanos")
+abline(h = c(-3,0,3), col = c("black","black","black"), lty = c(2,2,2))
+
+par(mfrow = c(1,1))
+
+
+```
+Liekanos svyruoja aplink nulį be aiškios struktūros.
+ Nėra akivaizdžių grupavimų ar sekų, kas rodo, kad duomenys nėra priklausomi vienas nuo kito (t. y. nėra autokoreliacijos).
+
+→ Išvada:
+Modelio prielaida apie atsitiktines, nepriklausomas klaidas tenkinama.
+
+
+```{r}
+#2.3 Liekanų normalumas
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
+
+par(mfrow = c(1,2), mar = c(4.5,4.5,3,1))
+
+# QQ grafikas
+qqnorm(residuals(model1),
+       pch = 21, col = "deepskyblue3",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(residuals(model1), col = "red", lwd = 2)
+
+# Histograma 
+res <- residuals(model1)
+hist(res,
+     breaks = 30,
+     col = "deepskyblue3",
+     border = "black",
+     main = "Liekanų pasiskirstymas",
+     xlab = "Liekanos",
+     ylab = "Tankis",
+     freq = FALSE)                  
+
+mu <- mean(res)
+s  <- sd(res)
+x <- seq(min(res), max(res), length.out = 200)
+lines(x, dnorm(x, mean = mu, sd = s), col = "red", lwd = 2) 
+
+
+# Normalumo testas
+library(nortest)
+ad.test(as.numeric(residuals(model1)))
+
+
+```
+Remiantis QQ diagrama ir liekanų histograma, galima teigti, kad liekanų pasiskirstymas yra artimas normaliam, tačiau pastebimi nedideli nukrypimai uodegose (ypač kairėje pusėje). Tai rodo, kad prielaida apie normaliai pasiskirsčiusias liekanas iš esmės tenkinama, nors pasiskirstymas nėra visiškai idealus.
+
+```{r}
+#2.4 Dispersijų lygumas (homoskedastiškumas)
+library(lmtest)
+library(sandwich)
+
+# Breusch-Pagan testas
+bptest(model1)
+
+# liekanų vs prognozuotų reikšmių grafikas
+plot(fitted(model1), resid(model1),
+     pch = 21, col = "deepskyblue3",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos reikšmės")
+
+abline(h = 0, col = "black", lty = 2, lwd = 2)
+
+# Pridedame LOESS kreivę, kad matytume tendenciją
+lines(lowess(fitted(model1), resid(model1)),
+      col = "red", lwd = 2)
+
+# Koeficientų reikšmės su heteroskedastiškumo korekcija
+coeftest(model1, vcov = vcovHC(model1, type = "HC3"))
+
+
+```
+
+```{r}
+#3. Išskirtys
+library(car)
+
+outlierTest(model1) 
+
+influenceIndexPlot(model1, id=list(method="y", n=3), vars=c("Cook", "Studentized", "hat")) 
+
+
+```
+
+```{r}
+#3.1. Pašaliname išskirtis ir sukuriame naują modelį
+
+#Patikriname, kokios tai reikšmės:
+train_data[c(908, 934), ]
+
+# outlierTest rodo, kad 706, 711 ir 713 yra labai įtakingi
+outliers_to_remove <- c(908, 934)
+
+# Sukuriame naują duomenų rinkinį be jų
+data_clean <- train_data[-outliers_to_remove, ]
+
+# Sukuriame naują modelį
+model2 <- update(model1, data = data_clean)
+
+
+
+```
+
+Išvada:
+
+908 stebėjimas — beveik garantuota, kad duomenų neatitikimas (klaida), nes CO₂ emisijos per mažos lyginant su sąnaudomis.
+
+934 — gali būti ekologiškai prastas, bet realus automobilis (įtakingas taškas)
+
+946 — normalus, tiesiog pasirodė sąraše dėl Bonferroni korekcijos ribų.
+
+908 ir 934 stebėjimai buvo pašalinti siekiant pagerinti modelio stabilumą.
+
+```{r}
+#4. Multikolinearumas:
+vif(model2)
+
+```
+```{r}
+#Kuriami modeliai kandidatai:
+# Modelis 1 – tik vidutines kuro sanaudos ir kuro sanaudos greitkelyje
+model21 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Vidutinės kuro sąnaudos (l/100km)` +
+               `Kuro sąnaudos greitkelyje (l/100km)` +
+               `Pavarų dėžės tipas` + 
+               `Kuro tipas` +
+               `Markė` +
+               `Kėbulo tipas`, 
+             data = data_clean)
+
+# Modelis 2 – tik vidutinės kuro sąnaudos
+model22 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Vidutinės kuro sąnaudos (l/100km)` +
+               `Pavarų dėžės tipas` + 
+               `Kuro tipas` +
+               `Markė` +
+               `Kėbulo tipas`, 
+             data = data_clean)
+
+# Modelis 3 – kuro sanaudos mieste ir greitkelyje be vidutiniu
+model23 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Kuro sąnaudos mieste (l/100km)` +
+               `Kuro sąnaudos greitkelyje (l/100km)` +
+               `Pavarų dėžės tipas` + 
+               `Kuro tipas` +
+               `Markė` +
+               `Kėbulo tipas`, 
+             data = data_clean)
+
+# Modelis 4 – vidutines kuro sanaudos ir kuro sanaudos mieste
+model24 <- lm(`CO2 emisijos (g/km)` ~ 
+               `Vidutinės kuro sąnaudos (l/100km)` +
+               `Kuro sąnaudos mieste (l/100km)` +
+               `Pavarų dėžės tipas` + 
+               `Kuro tipas` +
+               `Markė` +
+               `Kėbulo tipas`, 
+             data = data_clean)
+
+```
+
+```{r}
+#Kiekvieno modelio tikrinimas: 
+library(car)
+library(performance)
+
+# VIF vertinimas
+vif(model21)
+vif(model22)
+vif(model23)
+vif(model24)
+
+# Modelių palyginimas
+AIC(model21, model22, model23, model24)
+summary(model21)$adj.r.squared
+summary(model22)$adj.r.squared
+summary(model23)$adj.r.squared
+summary(model24)$adj.r.squared
+
+```
+Patikrinus multikolinearumą, nustatyta, kad tarp trijų sąnaudų kintamųjų („vidutinės“, „miesto“ ir „greitkelio“) egzistuoja stipri koreliacija. Siekiant nustatyti optimalų kintamųjų rinkinį, buvo sudaryti keli modeliai kandidatai:
+
+Modelis su vidutinėmis kuro sąnaudomis;
+
+Modelis su miesto ir greitkelio kuro sąnaudomis;
+
+Modelis su vidutinėmis ir greitkelio kuro sąnaudomis;
+
+Modelis su vidutinėmis ir miesto kuro sąnaudomis.
+
+Modelių palyginimas parodė, kad modelis, kuriame naudojamos kuro sąnaudos mieste ir kuro sąnaudos greitkėlyje, pasižymi mažesniu AIC (5027.630) ir aukštu koreguotu determinacijos koeficientu (Adj. R² ≈ 0.9935). Visų kintamųjų VIF reikšmės mažesnės nei 3, todėl multikolinearumo problema šiame modelyje nėra reikšminga.
+
+Atsižvelgiant į šiuos rezultatus, modelis su miesto ir greitkelio kuro sąnaudomis pasirinktas tolesnei analizei kaip geriausiai apibūdinantis CO₂ emisijų priklausomybę nuo automobilio techninių charakteristikų.
+
+
+```{r}
+#4.1. Patobulintas modelis
+model2a <- lm(`CO2 emisijos (g/km)` ~ 
+               `Kuro sąnaudos mieste (l/100km)` +
+               `Kuro sąnaudos greitkelyje (l/100km)` +
+               `Pavarų dėžės tipas` + 
+               `Kuro tipas` +
+               `Markė` +
+               `Kėbulo tipas`, 
+             data = data_clean)
+vif(model2a)
+
+```
+
+    Kadangi faktoriai turi skirtingą laisvės laipsnių skaičių (Df = kategorijų skaičius – 1), GVIF reikšmės nėra tiesiogiai palyginamos tarp kintamųjų.
+
+    Todėl daroma korekcija:
+
+GVIF^(1/(2*Df))
+
+    Ši transformacija „normalizuoja“ GVIF pagal kategorijų skaičių, kad galėtume palyginti jį su įprastais VIF slenksčiais (pvz., 4).
+
+
+```{r}
+# 4.2. Pažingsninis metodas:
+library(MASS)
+
+step_model2 <- stepAIC(model2, direction = c("both"))
+
+vif(step_model2)
+
+```
+
+
+
+```{r}
+#5. Prielaidų tikrinimas patobulintam modeliui:
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos vs prognozuotos
+plot(fitted(model2a), resid(model2a),
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos")
+abline(h = 0, col = "red", lty = 2)
+
+# 2. QQ grafikas
+qqnorm(resid(model2a), pch = 20, col = "mediumorchid3", bg = "white",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(resid(model2a), col = "red", lwd = 2)
+
+# 3. Scale-Location
+plot(fitted(model2a), sqrt(abs(rstandard(model2a))),
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "√|Standartizuotos liekanos|",
+     main = "Scale-Location")
+lines(lowess(fitted(model2a), sqrt(abs(rstandard(model2a)))),
+      col = "red", lwd = 2)
+
+# 4. Cook's distance
+plot(cooks.distance(model2a), type = "h",
+     col = "mediumorchid3", lwd = 2,
+     xlab = "Stebėjimo indeksas",
+     ylab = "Cook's atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model2a)), col = "red", lty = 2)
+
+par(mfrow = c(1,1))
+
+
+```
+```{r}
+#5.2. Liekanos pagal stebėjimų indeksą
+
+par(mfrow = c(2,2), mar = c(4.5,4.5,3,1))
+
+# 1. Liekanos
+plot(model2a$residuals, 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Liekanos",
+     main = "Liekanos pagal stebėjimus")
+abline(h = 0, col = "black", lty = 2)
+
+# 2. Cook'o atstumas
+plot(cooks.distance(model2a), 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Cook'o atstumas",
+     main = "Įtakingi taškai (Cook's distance)")
+abline(h = 4/length(resid(model2a)), col = "black", lty = 2)
+
+# 3. Standartizuotos liekanos
+plot(rstandard(model2a), 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Standartizuotos liekanos",
+     main = "Standartizuotos liekanos")
+abline(h = c(-2,0,2), col = c("black","black","black"), lty = 2)
+
+# 4. Studentizuotos liekanos
+plot(rstudent(model2a), 
+     pch = 20, col = "mediumorchid3", bg = "white",
+     xlab = "Stebėjimo indeksas", 
+     ylab = "Studentizuotos liekanos",
+     main = "Studentizuotos liekanos")
+abline(h = c(-3,0,3), col = c("black","black","black"), lty = 2)
+
+par(mfrow = c(1,1))
+
+```
+```{r}
+# 5.3 Liekanų normalumas
+library(nortest)
+
+res2 <- residuals(model2a)
+
+# QQ grafikas
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1))
+qqnorm(res2,
+       pch = 19, col = "mediumorchid3",
+       main = "Liekanų QQ grafikas",
+       xlab = "Teoriniai kvantiliai",
+       ylab = "Stebėtos liekanos")
+qqline(res2, col = "red", lwd = 2)
+
+# Histograma su teorine normalumo kreive
+hist(res2,
+     breaks = 30,
+     col = "mediumorchid3",
+     border = "black",
+     main = "Liekanų pasiskirstymas",
+     xlab = "Liekanos",
+     ylab = "Tankis",
+     freq = FALSE)
+curve(dnorm(x, mean = mean(res2), sd = sd(res2)),
+      col = "red", lwd = 2, add = TRUE)
+
+# Normalumo testai
+cat("\n=== MODELIS 2a ===\n")
+cat("Anderson–Darling testas:\n")
+print(ad.test(as.numeric(res2)))
+cat("\nShapiro–Wilk testas:\n")
+print(shapiro.test(as.numeric(res2)))
+
+
+
+```
+
+```{r}
+#5.4 Dispersijų lygumas (homoskedastiškumas)
+library(lmtest)
+library(sandwich)
+
+# Breusch-Pagan testai
+bptest(model2a)  
+
+plot(fitted(model2a), resid(model2a),
+     pch = 19, col = "mediumorchid3", bg = "white",
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Liekanos",
+     main = "Liekanos ir prognozuotos reikšmės")
+abline(h = 0, lty = 2, col = "black", lwd = 2)
+lines(lowess(fitted(model2a), resid(model2a)),
+      col = "red", lwd = 2)
+
+# Koeficientų reikšmės su heteroskedastiškumo korekcija
+coeftest(model2a, vcov = vcovHC(model2a, type = "HC3"))
+
+```
+
+```{r}
+#6. Išskirtys patobulintam modeliui
+
+outlierTest(model2a)          
+influenceIndexPlot(model2a, id=list(method="y", n=3), vars=c("Cook", "Studentized", "hat")) 
+
+```
+
+```{r}
+#7. Modelio tobulinimas
+
+#7.1. Reikšmingų kovariančių atranka
+
+coeftest(model2a, vcov = vcovHC(model2a, type = "HC3"))
+#paliekam visas
+```
+
+```{r}
+#7.2. Sąveikų įtraukimas
+
+# Kuriame modelį su sąveikomis tarp prasmingų kintamųjų
+
+model_fin <- lm(`CO2 emisijos (g/km)` ~ 
+                  `Kuro sąnaudos mieste (l/100km)` * `Kuro tipas` +
+                  `Kuro sąnaudos greitkelyje (l/100km)` * `Kuro tipas` +
+                  `Kuro sąnaudos mieste (l/100km)` * `Kėbulo tipas` +
+                  `Kuro sąnaudos greitkelyje (l/100km)` * `Kėbulo tipas` +
+                  `Kuro sąnaudos mieste (l/100km)`:`Pavarų dėžės tipas` +
+                  `Kuro sąnaudos greitkelyje (l/100km)`:`Pavarų dėžės tipas` +
+                  `Kuro tipas` * `Pavarų dėžės tipas` +
+                  `Markė`,
+                data = data_clean)
+
+summary(model_fin)
+
+```
+
+```{r}
+#Modelis su reiksmingomis saveikomis:
+model_final <- lm(`CO2 emisijos (g/km)` ~ 
+                  `Kuro sąnaudos mieste (l/100km)` * `Kuro tipas` +
+                  `Kuro sąnaudos greitkelyje (l/100km)` * `Kuro tipas` +
+                  `Kuro sąnaudos greitkelyje (l/100km)` * `Pavarų dėžės tipas` +
+                  `Kuro tipas` * `Pavarų dėžės tipas` +
+                  `Kėbulo tipas` +
+                  `Markė`,
+                data = data_clean)
+
+summary(model_final)
+```
+Palikom reiksmingas saveikas: 
+Kuro sąnaudos mieste × Kuro tipas
+
+Kuro sąnaudos greitkelyje × Kuro tipas
+
+Kuro sąnaudos greitkelyje × Pavarų dėžės tipas
+
+Kuro tipas × Pavarų dėžės tipas
+
+```{r}
+#7.3. Modelių palyginimas (ar sąveikos pagerino modelį)
+
+anova(model2a, model_final)
+
+```
+Palyginus modelius, gauta F = 8.37 ir p < 2.2e−16.
+
+Lyginant modelį be sąveikų ir modelį su sąveikomis tarp kuro sąnaudų, kuro tipo ir pavarų dėžės tipo, ANOVA testas parodė, kad išplėstas modelis reikšmingai pagerina CO₂ emisijų paaiškinimą (F(20,1103) = 8.37, p < 0.001).
+Tai rodo, kad CO₂ emisijų priklausomybė nuo kuro sąnaudų skiriasi priklausomai nuo kuro ir pavarų dėžės tipo, todėl šias sąveikas būtina įtraukti į galutinį modelį.
+
+
+```{r}
+# 8.1. Prognozės test rinkiniui
+
+# Prognozės
+test_pred <- predict(model_final, newdata = test_data)
+
+# Rezultatų lentelė
+results <- data.frame(
+  Tikros = test_data$`CO2 emisijos (g/km)`,
+  Prognozuotos = test_pred
+)
+
+head(results)
+
+
+```
+```{r}
+# 8.2. Modelio tikslumo įvertinimas (test rinkinyje)
+
+# Apskaičiuojame paklaidos rodiklius
+library(Metrics)
+
+rmse_val <- rmse(results$Tikros, results$Prognozuotos)
+mae_val  <- mae(results$Tikros, results$Prognozuotos)
+r2_val   <- cor(results$Tikros, results$Prognozuotos)^2
+
+cat("RMSE:", rmse_val, "\n")
+cat("MAE:", mae_val, "\n")
+cat("R² (test duomenims):", r2_val, "\n")
+
+```
+Įvertinus modelio tikslumą testiniais duomenimis, gautos labai geros prognozavimo charakteristikos:
+šakninis vidutinis kvadratinis nuokrypis (RMSE) siekia 1.89,
+vidutinė absoliuti paklaida (MAE) – 1.45,
+o determinacijos koeficientas (R²) yra 0.995.
+Tai rodo, kad modelis itin tiksliai paaiškina CO₂ emisijų variaciją (apie 99.5 %) ir turi mažas prognozavimo paklaidas, todėl jį galima laikyti tinkamu CO₂ emisijų įvertinimui.
+
+```{r}
+#8.3. Grafikas – stebėtos vs prognozuotos reikšmės
+
+plot(results$Prognozuotos, results$Tikros,
+     xlab = "Prognozuotos reikšmės",
+     ylab = "Stebėtos reikšmės",
+     main = "Prognozuotos ir stebėtos reikšmės",
+     pch = 21, bg = "lightblue", col = "darkblue")
+abline(0, 1, col = "red", lwd = 2)
+
+```
+
+```{r}
+#9. Prognozė naujam automobiliui
+
+naujas <- data.frame(
+  check.names = FALSE,  
+  "Kuro sąnaudos mieste (l/100km)" = 7.5,
+  "Kuro sąnaudos greitkelyje (l/100km)" = 5.2,
+  "Pavarų dėžės tipas" = factor("Automatinė su rankiniu perjungimu", 
+                                 levels = levels(train_data$`Pavarų dėžės tipas`)),
+  "Kuro tipas" = factor("Įprastas benzinas", 
+                        levels = levels(train_data$`Kuro tipas`)),
+  "Kėbulo tipas" = factor("Lengvieji automobiliai", 
+                          levels = levels(train_data$`Kėbulo tipas`)),
+  "Markė" = factor("TOYOTA", levels = levels(train_data$Markė))
+)
+
+prognoze <- predict(model_final, newdata = naujas, interval = "prediction")
+prognoze
+
+```
+
+
+
+
+
+
+
+
+
