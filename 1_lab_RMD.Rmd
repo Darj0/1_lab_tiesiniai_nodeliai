@@ -20,6 +20,7 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r}
 library(dplyr)
+set.seed(123)
 
 #data <- read.csv("CO2 Emissions_Canada.csv", header = TRUE)
 data <- read.csv("CO2_Emissions_Canada.csv", header = TRUE)
@@ -272,6 +273,8 @@ print(p4)
 #  Kuro tipas
 data <- data %>%
   filter(`Kuro tipas` != "Gamtinės dujos")
+data <- data %>%
+  filter(`Kuro tipas` != "Etanolis (E85)")
 
 p5 <- plot_box_rainbow(data, "Kuro tipas", "CO2 emisijos pagal kuro tipą") +
   theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  
@@ -377,7 +380,7 @@ print(p_mean_kuras)
 ```
 
 ```{r}
-set.seed(123) 
+ 
 data <- data[sample(nrow(data)), ]
 
 train_index <- sample(1:nrow(data), 0.8 * nrow(data))
@@ -615,10 +618,9 @@ influenceIndexPlot(model1, id=list(method="y", n=3), vars=c("Cook", "Studentized
 #3.1. Pašaliname išskirtis ir sukuriame naują modelį
 
 #Patikriname, kokios tai reikšmės:
-train_data[c(908, 934), ]
+train_data[c(648, 351), ]
 
-# outlierTest rodo, kad 706, 711 ir 713 yra labai įtakingi
-outliers_to_remove <- c(908, 934)
+outliers_to_remove <- c(648, 351)
 
 # Sukuriame naują duomenų rinkinį be jų
 data_clean <- train_data[-outliers_to_remove, ]
@@ -632,13 +634,11 @@ model2 <- update(model1, data = data_clean)
 
 Išvada:
 
-908 stebėjimas — beveik garantuota, kad duomenų neatitikimas (klaida), nes CO₂ emisijos per mažos lyginant su sąnaudomis.
+648 stebėjimas — beveik garantuota, kad duomenų neatitikimas (klaida), nes CO₂ emisijos per mažos lyginant su sąnaudomis.
 
-934 — gali būti ekologiškai prastas, bet realus automobilis (įtakingas taškas)
+351 — gali būti ekologiškai prastas, bet realus automobilis (įtakingas taškas)
 
-946 — normalus, tiesiog pasirodė sąraše dėl Bonferroni korekcijos ribų.
-
-908 ir 934 stebėjimai buvo pašalinti siekiant pagerinti modelio stabilumą.
+648 ir 351 stebėjimai buvo pašalinti siekiant pagerinti modelio stabilumą.
 
 ```{r}
 #4. Multikolinearumas:
@@ -922,8 +922,6 @@ coeftest(model2a, vcov = vcovHC(model2a, type = "HC3"))
 model_fin <- lm(`CO2 emisijos (g/km)` ~ 
                   `Kuro sąnaudos mieste (l/100km)` * `Kuro tipas` +
                   `Kuro sąnaudos greitkelyje (l/100km)` * `Kuro tipas` +
-                  `Kuro sąnaudos mieste (l/100km)` * `Kėbulo tipas` +
-                  `Kuro sąnaudos greitkelyje (l/100km)` * `Kėbulo tipas` +
                   `Kuro sąnaudos mieste (l/100km)`:`Pavarų dėžės tipas` +
                   `Kuro sąnaudos greitkelyje (l/100km)`:`Pavarų dėžės tipas` +
                   `Kuro tipas` * `Pavarų dėžės tipas` +
@@ -938,10 +936,9 @@ summary(model_fin)
 #Modelis su reiksmingomis saveikomis:
 model_final <- lm(`CO2 emisijos (g/km)` ~ 
                   `Kuro sąnaudos mieste (l/100km)` * `Kuro tipas` +
-                  `Kuro sąnaudos greitkelyje (l/100km)` * `Kuro tipas` +
+                  `Kuro sąnaudos mieste (l/100km)` * `Pavarų dėžės tipas` +
                   `Kuro sąnaudos greitkelyje (l/100km)` * `Pavarų dėžės tipas` +
                   `Kuro tipas` * `Pavarų dėžės tipas` +
-                  `Kėbulo tipas` +
                   `Markė`,
                 data = data_clean)
 
@@ -951,6 +948,8 @@ Palikom reiksmingas saveikas:
 Kuro sąnaudos mieste × Kuro tipas
 
 Kuro sąnaudos greitkelyje × Kuro tipas
+
+Kuro sąnaudos mieste × Pavarų dėžės tipas
 
 Kuro sąnaudos greitkelyje × Pavarų dėžės tipas
 
@@ -962,7 +961,7 @@ Kuro tipas × Pavarų dėžės tipas
 anova(model2a, model_final)
 
 ```
-Palyginus modelius, gauta F = 8.37 ir p < 2.2e−16.
+Palyginus modelius, gauta F = 5.829 ir p = 3.843e-14.
 
 Lyginant modelį be sąveikų ir modelį su sąveikomis tarp kuro sąnaudų, kuro tipo ir pavarų dėžės tipo, ANOVA testas parodė, kad išplėstas modelis reikšmingai pagerina CO₂ emisijų paaiškinimą (F(20,1103) = 8.37, p < 0.001).
 Tai rodo, kad CO₂ emisijų priklausomybė nuo kuro sąnaudų skiriasi priklausomai nuo kuro ir pavarų dėžės tipo, todėl šias sąveikas būtina įtraukti į galutinį modelį.
@@ -1001,8 +1000,8 @@ cat("R² (test duomenims):", r2_val, "\n")
 ```
 Įvertinus modelio tikslumą testiniais duomenimis, gautos labai geros prognozavimo charakteristikos:
 šakninis vidutinis kvadratinis nuokrypis (RMSE) siekia 1.89,
-vidutinė absoliuti paklaida (MAE) – 1.45,
-o determinacijos koeficientas (R²) yra 0.995.
+vidutinė absoliuti paklaida (MAE) – 1.5,
+o determinacijos koeficientas (R²) yra 0.994.
 Tai rodo, kad modelis itin tiksliai paaiškina CO₂ emisijų variaciją (apie 99.5 %) ir turi mažas prognozavimo paklaidas, todėl jį galima laikyti tinkamu CO₂ emisijų įvertinimui.
 
 ```{r}
